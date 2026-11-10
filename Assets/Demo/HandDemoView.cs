@@ -26,6 +26,8 @@ namespace EngineeringDemo
         [Header("Fridge Aim")]
         [SerializeField] private FridgeDetector _fridgeDetector;
         [SerializeField] private FridgeHologram _fridgeHologram;
+        [Tooltip("Seconds to hold three fingers before the fridge matches the hand's rotation.")]
+        [SerializeField, Min(0f)] private float _threeFingerAlignHoldSeconds = 0.3f;
         [Tooltip("Middle finger PIP extension needed to rearm. One is straight. Zero is bent 90 degrees or more.")]
         [SerializeField, Range(0.1f, 1f)] private float _triggerReadyExtension = 0.78f;
         [Tooltip("Fire when middle finger PIP extension falls to this value. Bending the fingertip does not affect it.")]
@@ -128,15 +130,18 @@ namespace EngineeringDemo
 
             _preview.texture = _handManager.CameraTexture;
             var imageViewport = _handManager.GetImageViewport(_camera);
-            _preview.rectTransform.anchorMin = imageViewport.min;
-            _preview.rectTransform.anchorMax = imageViewport.max;
+            var previewRect = _handManager.GetCameraPreviewRect(_camera, imageViewport);
+            _preview.rectTransform.anchorMin = previewRect.min;
+            _preview.rectTransform.anchorMax = previewRect.max;
+            _preview.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -_handManager.CameraRotationAngle);
             _preview.uvRect = new Rect(_handManager.MirrorWebcam ? 1 : 0,
                 _handManager.CameraVerticallyMirrored ? 1 : 0,
                 _handManager.MirrorWebcam ? -1 : 1, _handManager.CameraVerticallyMirrored ? -1 : 1);
 
             var primary = _handManager.PrimaryHand;
             _castLine.endWidth = _castLine.startWidth * _rayTipWidth;
-            var grabbedPointer = _fridgeHologram != null && _fridgeRotation.Update(_camera, _fridgeHologram, _handManager.Hands);
+            var grabbedPointer = _fridgeHologram != null &&
+                _fridgeRotation.Update(_camera, _fridgeHologram, _handManager, _threeFingerAlignHoldSeconds);
             _fridgeHologram?.UpdateInspection(_camera, Time.unscaledDeltaTime);
             if (_fridgeDetector != null)
                 UpdateFridgeAim(primary, imageViewport, grabbedPointer);
@@ -362,8 +367,7 @@ namespace EngineeringDemo
             for (int i = 0; i <= samples; i++)
             {
                 var imagePoint = Vector2.Lerp(start, end, i / (float)samples);
-                var point = new Vector3(viewport.xMin + imagePoint.x * viewport.width,
-                    viewport.yMax - imagePoint.y * viewport.height);
+                var point = _handManager.ImageToViewport(imagePoint, viewport);
                 var hit = _fridgeHologram.FindSectionHit(_camera.ViewportPointToRay(point), out bool hitsModel);
                 if (hitsModel)
                     return hit;
@@ -380,8 +384,8 @@ namespace EngineeringDemo
 
         private static bool BackPressed(Keyboard keyboard)
         {
-#if UNITY_ANDROID && !UNITY_EDITOR
-            // Unity's Android Back event is reported as Escape by the legacy input backend.
+#if UNITY_ANDROID && !UNITY_EDITOR && ENABLE_LEGACY_INPUT_MANAGER
+            // Some Android devices report system Back through the legacy Escape event.
             if (Input.GetKeyDown(KeyCode.Escape))
                 return true;
 #endif
@@ -485,8 +489,7 @@ namespace EngineeringDemo
             if (!detected)
                 return $"no refrigerator detected ({_fridgeDetector.Status})";
 
-            var imagePoint = new Vector2((viewportPoint.x - imageViewport.xMin) / imageViewport.width,
-                (imageViewport.yMax - viewportPoint.y) / imageViewport.height);
+            var imagePoint = _handManager.ViewportToImage(viewportPoint, imageViewport);
             if (!fridge.Contains(imagePoint))
                 return "outside the detected refrigerator";
 
@@ -495,7 +498,8 @@ namespace EngineeringDemo
 
         private bool TrySelectFridge(Rect imageViewport, Rect fridge, string source)
         {
-            if (_fridgeHologram == null || !_fridgeHologram.TrySelect(_camera, imageViewport, fridge))
+            if (_fridgeHologram == null ||
+                !_fridgeHologram.TrySelect(_camera, imageViewport, _handManager.GetDisplayImageBox(fridge)))
                 return false;
 
             Debug.Log($"[FridgeDemo] Refrigerator selected by {source}. Hologram spawned.", this);
@@ -570,9 +574,8 @@ namespace EngineeringDemo
 
         private Vector3 ImageToWorld(Vector2 point, float depth)
         {
-            var imageViewport = _handManager.GetImageViewport(_camera);
-            return _camera.ViewportToWorldPoint(new Vector3(imageViewport.xMin + point.x * imageViewport.width,
-                imageViewport.yMax - point.y * imageViewport.height, depth));
+            var viewportPoint = _handManager.ImageToViewport(point, _handManager.GetImageViewport(_camera));
+            return _camera.ViewportToWorldPoint(new Vector3(viewportPoint.x, viewportPoint.y, depth));
         }
 
         private void SetStatus(string text)

@@ -25,6 +25,7 @@ namespace EngineeringDemo
         private Quaternion _pointerModelStart;
 
         private Hand _rotationHand;
+        private double? _threeFingerStartedAt;
         private bool _holdingFist;
         private Quaternion _fistStart;
         private Quaternion _fistModelStart;
@@ -34,11 +35,18 @@ namespace EngineeringDemo
             _mouseGrab = null;
             _tapTouch = null;
             _firstTouch = _secondTouch = null;
+            ReleaseHandGrip();
+        }
+
+        private void ReleaseHandGrip()
+        {
             _rotationHand = null;
+            _threeFingerStartedAt = null;
+            _holdingFist = false;
         }
 
         // A grabbed pointer belongs to the hologram, so it can't also select the camera detection.
-        public bool Update(Camera camera, FridgeHologram hologram, IReadOnlyList<Hand> hands)
+        public bool Update(Camera camera, FridgeHologram hologram, HandManager tracking, float threeFingerAlignHoldSeconds)
         {
             if (!hologram.CanRotate)
             {
@@ -49,17 +57,17 @@ namespace EngineeringDemo
             if (UpdateTouch(camera, hologram))
             {
                 _mouseGrab = null;
-                _rotationHand = null;
+                ReleaseHandGrip();
                 return true;
             }
 
             if (UpdateMouse(camera, hologram))
             {
-                _rotationHand = null;
+                ReleaseHandGrip();
                 return true;
             }
 
-            UpdateHandRotation(hologram, hands);
+            UpdateHandRotation(hologram, tracking.Hands, tracking.TrackingTimestamp, threeFingerAlignHoldSeconds);
             return false;
         }
 
@@ -214,12 +222,12 @@ namespace EngineeringDemo
             hologram.InspectionRotation = yaw * pitch * _pointerModelStart;
         }
 
-        private void UpdateHandRotation(FridgeHologram hologram, IReadOnlyList<Hand> hands)
+        private void UpdateHandRotation(FridgeHologram hologram, IReadOnlyList<Hand> hands,
+            double trackingTimestamp, float threeFingerAlignHoldSeconds)
         {
             if (!CanRotateWithHand(_rotationHand))
             {
-                _rotationHand = null;
-                _holdingFist = false;
+                ReleaseHandGrip();
                 foreach (var hand in hands)
                 {
                     if (!CanRotateWithHand(hand))
@@ -236,12 +244,18 @@ namespace EngineeringDemo
             if (_rotationHand.Gesture == HandGesture.ThreeFingers)
             {
                 _holdingFist = false;
+                _threeFingerStartedAt ??= trackingTimestamp;
+                // Repeated renders of the same tracking result don't confirm a hold.
+                if (trackingTimestamp - _threeFingerStartedAt.Value < threeFingerAlignHoldSeconds)
+                    return;
+
                 // The doors face local -Z. The index-to-pinky axis flips between hands.
                 hologram.InspectionRotation = _rotationHand.Side == HandSide.Left
                     ? current * LeftPalmAlignment : current;
                 return;
             }
 
+            _threeFingerStartedAt = null;
             if (!_holdingFist)
             {
                 _holdingFist = true;

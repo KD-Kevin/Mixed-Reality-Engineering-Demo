@@ -88,7 +88,7 @@ namespace EngineeringDemo
 
         internal void Apply(List<NormalizedLandmark> landmarks, List<Landmark> worldLandmarks, HandSide side,
             float blend, float deadZone, float heightOverWidth, float pinchClose, float pinchRelease,
-            float pistolMiddleExtensionLimit)
+            float pistolMiddleExtensionLimit, int cameraRotationAngle = 0)
         {
             var wasTracked = IsTracked;
             if (side != HandSide.Unknown)
@@ -109,7 +109,7 @@ namespace EngineeringDemo
                 }
             }
 
-            UpdatePalmRotation(worldLandmarks, heightOverWidth, wasTracked ? blend : 1f);
+            UpdatePalmRotation(worldLandmarks, heightOverWidth, wasTracked ? blend : 1f, cameraRotationAngle);
             MiddleFingerExtension = FingerExtension(HandPoint.MiddleMcp, heightOverWidth);
             var pipExtension = MeasureMiddlePipExtension(landmarks, worldLandmarks, heightOverWidth);
             MiddlePipExtension = wasTracked && MiddlePipExtension.HasValue && pipExtension.HasValue
@@ -173,7 +173,7 @@ namespace EngineeringDemo
             Array.Clear(_points, 0, PointCount);
         }
 
-        private void UpdatePalmRotation(List<Landmark> worldLandmarks, float heightOverWidth, float blend)
+        private void UpdatePalmRotation(List<Landmark> worldLandmarks, float heightOverWidth, float blend, int cameraRotationAngle)
         {
             bool useWorld = worldLandmarks?.Count == PointCount;
             Vector3 CameraPoint(HandPoint point)
@@ -194,7 +194,7 @@ namespace EngineeringDemo
                 return;
             }
 
-            var rotation = Quaternion.LookRotation(normal, along);
+            var rotation = Quaternion.AngleAxis(-cameraRotationAngle, Vector3.forward) * Quaternion.LookRotation(normal, along);
             PalmRotation = useWorld && PalmRotation is Quaternion previous
                 ? Quaternion.Slerp(previous, rotation, blend)
                 : rotation;

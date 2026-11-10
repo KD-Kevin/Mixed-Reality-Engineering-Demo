@@ -58,6 +58,7 @@ namespace EngineeringDemo
         private double _lastArrivalTime;
 
         public IReadOnlyList<Hand> Hands => _view ??= _hands.AsReadOnly();
+        internal double TrackingTimestamp => _lastFrameTime;
         public Hand PrimaryHand { get; private set; }
         public string Status { get; private set; } = "Stopped";
         public bool IsRunning => _task != null;
@@ -65,6 +66,7 @@ namespace EngineeringDemo
         public bool MirrorWebcam => _mirrorWebcam;
         public bool CameraVerticallyMirrored => _webcam != null && _webcam.videoVerticallyMirrored;
         public float ImageAspect => 1f / _heightOverWidth;
+        internal int CameraRotationAngle => _webcam != null ? _webcam.videoRotationAngle : 0;
         // Subscribers can build their own image from this frame during the callback.
         internal event Action<TextureFrame, long, ImageProcessingOptions> FramePrepared;
         public float WristDistanceFromCamera
@@ -281,9 +283,54 @@ namespace EngineeringDemo
         /// <summary>The camera viewport occupied by an aspect-fitted image.</summary>
         public Rect GetImageViewport(Camera camera)
         {
-            var width = Mathf.Min(1f, ImageAspect / camera.aspect);
-            var height = Mathf.Min(1f, camera.aspect / ImageAspect);
+            float aspect = CameraRotationAngle % 180 == 0 ? ImageAspect : 1f / ImageAspect;
+            var width = Mathf.Min(1f, aspect / camera.aspect);
+            var height = Mathf.Min(1f, camera.aspect / aspect);
             return new Rect((1f - width) * 0.5f, (1f - height) * 0.5f, width, height);
+        }
+
+        internal Rect GetCameraPreviewRect(Camera camera, Rect imageViewport)
+        {
+            if (CameraRotationAngle % 180 == 0)
+                return imageViewport;
+
+            // A quarter turn swaps physical pixel dimensions, rather than normalized dimensions.
+            var size = new Vector2(imageViewport.height / camera.aspect, imageViewport.width * camera.aspect);
+            return new Rect(imageViewport.center - size * 0.5f, size);
+        }
+
+        internal Vector2 ImageToViewport(Vector2 rawPoint, Rect viewport)
+        {
+            var displayPoint = RotateImagePoint(rawPoint, CameraRotationAngle);
+            return new Vector2(viewport.xMin + displayPoint.x * viewport.width,
+                viewport.yMax - displayPoint.y * viewport.height);
+        }
+
+        internal Vector2 ViewportToImage(Vector2 point, Rect viewport)
+        {
+            var displayPoint = new Vector2((point.x - viewport.xMin) / viewport.width,
+                (viewport.yMax - point.y) / viewport.height);
+            return RotateImagePoint(displayPoint, -CameraRotationAngle);
+        }
+
+        internal Rect GetDisplayImageBox(Rect box)
+        {
+            var first = RotateImagePoint(box.min, CameraRotationAngle);
+            var second = RotateImagePoint(box.max, CameraRotationAngle);
+            var min = Vector2.Min(first, second);
+            var max = Vector2.Max(first, second);
+            return new Rect(min, max - min);
+        }
+
+        private static Vector2 RotateImagePoint(Vector2 point, int clockwiseDegrees)
+        {
+            return ((clockwiseDegrees % 360 + 360) % 360) switch
+            {
+                90 => new Vector2(1f - point.y, point.x),
+                180 => Vector2.one - point,
+                270 => new Vector2(point.y, 1f - point.x),
+                _ => point
+            };
         }
 
         public bool TryGetWorldPoint(Camera camera, Hand hand, HandPoint point, out Vector3 position)
@@ -294,16 +341,17 @@ namespace EngineeringDemo
 
             var imageRect = GetImageViewport(camera);
             var depth = Mathf.Max(camera.nearClipPlane + 0.01f, _wristDistanceFromCamera);
-            var left = camera.ViewportToWorldPoint(new Vector3(imageRect.xMin, 0.5f, depth));
-            var right = camera.ViewportToWorldPoint(new Vector3(imageRect.xMax, 0.5f, depth));
+            var rawLeft = ImageToViewport(new Vector2(0f, 0.5f), imageRect);
+            var rawRight = ImageToViewport(new Vector2(1f, 0.5f), imageRect);
+            var left = camera.ViewportToWorldPoint(new Vector3(rawLeft.x, rawLeft.y, depth));
+            var right = camera.ViewportToWorldPoint(new Vector3(rawRight.x, rawRight.y, depth));
             // Relative landmark Z is scaled by image width. The wrist anchors the depth.
             depth += (landmark.z - hand.Wrist.z) * Vector3.Distance(left, right);
             if (depth <= camera.nearClipPlane)
                 return false;
 
-            position = camera.ViewportToWorldPoint(new Vector3(
-                imageRect.xMin + landmark.x * imageRect.width,
-                imageRect.yMin + (1f - landmark.y) * imageRect.height, depth));
+            var pointInView = ImageToViewport(landmark, imageRect);
+            position = camera.ViewportToWorldPoint(new Vector3(pointInView.x, pointInView.y, depth));
             return true;
         }
 
@@ -396,7 +444,7 @@ namespace EngineeringDemo
                 var worldPoints = worldLandmarks != null && i < worldLandmarks.Count
                     ? worldLandmarks[i].landmarks : null;
                 hand.Apply(points, worldPoints, side, blend, _jitterDeadZone, heightOverWidth,
-                    _pinchClose, Mathf.Max(_pinchClose, _pinchRelease), _pistolMiddleExtensionLimit);
+                    _pinchClose, Mathf.Max(_pinchClose, _pinchRelease), _pistolMiddleExtensionLimit, CameraRotationAngle);
                 _hands.Add(hand);
             }
 
@@ -424,7 +472,7 @@ namespace EngineeringDemo
         private void Update()
         {
             if (_webcam != null && _webcam.width > 16 && _webcam.didUpdateThisFrame)
-                SubmitFrame(_webcam, _mirrorWebcam, _webcam.videoVerticallyMirrored, _webcam.videoRotationAngle);
+                SubmitFrame(_webcam, _mirrorWebcam, _webcam.videoVerticallyMirrored, CameraRotationAngle);
 
             long timestamp = -1;
             lock (_resultLock)

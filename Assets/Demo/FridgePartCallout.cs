@@ -43,10 +43,17 @@ namespace EngineeringDemo
             _back = CreateButton("Back to Fridge", style.font, collapse);
             _reset = CreateButton("Reset Rotation", style.font, resetRotation);
             _close = CreateButton("Close Hologram", style.font, closeHologram);
-#if UNITY_ANDROID && !UNITY_EDITOR
-            var exit = CreateButton("Exit App", style.font, () => Application.Quit());
-            exit.anchorMin = exit.anchorMax = exit.pivot = Vector2.one;
-            exit.anchoredPosition = new Vector2(-16f, -16f);
+#if UNITY_EDITOR || UNITY_STANDALONE || UNITY_ANDROID
+            var closeDemo = CreateButton("Close Demo", style.font, () =>
+            {
+#if UNITY_EDITOR
+                UnityEditor.EditorApplication.isPlaying = false;
+#else
+                Application.Quit();
+#endif
+            });
+            closeDemo.anchorMin = closeDemo.anchorMax = closeDemo.pivot = Vector2.right;
+            closeDemo.anchoredPosition = new Vector2(-16f, 72f);
 #endif
             Show(null, default, false, false, false);
         }
