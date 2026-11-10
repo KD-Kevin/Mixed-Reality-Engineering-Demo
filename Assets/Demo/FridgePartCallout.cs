@@ -13,6 +13,9 @@ namespace EngineeringDemo
         private readonly RectTransform _reset;
         private readonly RectTransform _close;
         private readonly UnityEngine.UI.Text _label;
+        private readonly UnityEngine.UI.Image _detectionLabel;
+
+        private Camera CanvasCamera => _canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : _canvas.worldCamera;
 
         internal FridgePartCallout(UnityEngine.UI.Text style, Action collapse, Action resetRotation, Action closeHologram)
         {
@@ -24,6 +27,23 @@ namespace EngineeringDemo
             Stretch(_root, Vector2.zero);
             for (int i = 0; i < existingControls; i++)
                 canvasRoot.GetChild(0).SetParent(_root, false);
+
+            var detectionTag = CreateImage("Fridge Detection Label", _root, Color.cyan);
+            detectionTag.sizeDelta = new Vector2(82f, 26f);
+            detectionTag.SetAsFirstSibling();
+            _detectionLabel = detectionTag.GetComponent<UnityEngine.UI.Image>();
+            var detectionText = new GameObject("Fridge Text", typeof(RectTransform), typeof(UnityEngine.UI.Text))
+                .GetComponent<UnityEngine.UI.Text>();
+            detectionText.transform.SetParent(detectionTag, false);
+            Stretch(detectionText.rectTransform, Vector2.zero);
+            detectionText.font = style.font;
+            detectionText.fontSize = 16;
+            detectionText.fontStyle = FontStyle.Bold;
+            detectionText.color = new Color(0.04f, 0.09f, 0.14f);
+            detectionText.alignment = TextAnchor.MiddleCenter;
+            detectionText.raycastTarget = false;
+            detectionText.text = "Fridge";
+            detectionTag.gameObject.SetActive(false);
 
             var accent = FridgeSection.HoverColor;
             accent.a = 1f;
@@ -72,9 +92,8 @@ namespace EngineeringDemo
             if (!visible)
                 return;
 
-            var uiCamera = _canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : _canvas.worldCamera;
             RectTransformUtility.ScreenPointToLocalPointInRectangle(_root, camera.WorldToScreenPoint(hit.Point),
-                uiCamera, out var start);
+                CanvasCamera, out var start);
 
             var part = hit.Part;
             bool hasReference = !string.IsNullOrEmpty(part.ReferenceId);
@@ -95,6 +114,29 @@ namespace EngineeringDemo
             _line.anchoredPosition = start;
             _line.sizeDelta = new Vector2(direction.magnitude, 2f);
             _line.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg);
+        }
+
+        internal void ShowDetection(Vector2? topEdge, Color color)
+        {
+            Vector2 edge = default;
+            bool visible = topEdge is Vector2 point && RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                _root, point, CanvasCamera, out edge);
+            _detectionLabel.gameObject.SetActive(visible);
+            if (!visible)
+                return;
+
+            var tag = _detectionLabel.rectTransform;
+            var half = tag.sizeDelta * 0.5f;
+            var bounds = _root.rect;
+            const float gap = 2f;
+            float y = edge.y + half.y + gap;
+            if (y + half.y > bounds.yMax)
+                y = edge.y - half.y - gap;
+
+            tag.anchoredPosition = new Vector2(
+                Mathf.Clamp(edge.x, bounds.xMin + half.x, bounds.xMax - half.x),
+                Mathf.Clamp(y, bounds.yMin + half.y, bounds.yMax - half.y));
+            _detectionLabel.color = color;
         }
 
         private void ApplySafeArea(Rect area, int width, int height)

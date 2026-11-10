@@ -290,6 +290,8 @@ namespace EngineeringDemo
             _partCallout?.Show(_camera, hover, expanded, canAimAtSections, _fridgeHologram != null && _fridgeHologram.IsVisible);
 
             _fridgeOutline.enabled = hasFridge && !FridgeSelected && !expanded;
+            var outlineColor = locked ? Color.green : Color.cyan;
+            Vector2? detectionLabelPosition = null;
             if (_fridgeOutline.enabled)
             {
                 const float outlineDepth = 2f;
@@ -297,8 +299,13 @@ namespace EngineeringDemo
                 _fridgeOutline.SetPosition(1, ImageToWorld(new Vector2(fridge.xMax, fridge.yMin), outlineDepth));
                 _fridgeOutline.SetPosition(2, ImageToWorld(fridge.max, outlineDepth));
                 _fridgeOutline.SetPosition(3, ImageToWorld(new Vector2(fridge.xMin, fridge.yMax), outlineDepth));
-                SetVisualColor(_fridgeOutline, locked ? Color.green : Color.cyan);
+                SetVisualColor(_fridgeOutline, outlineColor);
+                var displayBox = _handManager.GetDisplayImageBox(fridge);
+                detectionLabelPosition = _camera.ViewportToScreenPoint(new Vector3(
+                    imageViewport.xMin + displayBox.center.x * imageViewport.width,
+                    imageViewport.yMax - displayBox.yMin * imageViewport.height, outlineDepth));
             }
+            _partCallout?.ShowDetection(detectionLabelPosition, outlineColor);
 
             if (aiming)
             {
