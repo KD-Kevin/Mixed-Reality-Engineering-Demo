@@ -7,6 +7,8 @@ namespace EngineeringDemo
     {
         private readonly Canvas _canvas;
         private readonly RectTransform _root;
+        private readonly RectTransform _helperPanel;
+        private readonly float _helperWidth;
         private readonly RectTransform _line;
         private readonly RectTransform _card;
         private readonly RectTransform _back;
@@ -21,6 +23,11 @@ namespace EngineeringDemo
         {
             _canvas = style.canvas.rootCanvas;
             var canvasRoot = _canvas.transform;
+            if (style.transform.parent != canvasRoot && style.transform.parent is RectTransform helperPanel)
+            {
+                _helperPanel = helperPanel;
+                _helperWidth = helperPanel.rect.width;
+            }
             int existingControls = canvasRoot.childCount;
             _root = new GameObject("Fridge Safe Area", typeof(RectTransform)).GetComponent<RectTransform>();
             _root.SetParent(canvasRoot, false);
@@ -81,6 +88,9 @@ namespace EngineeringDemo
         internal void Show(Camera camera, FridgeHologram.SectionHit hit, bool expanded, bool canRotate, bool hologramVisible)
         {
             ApplySafeArea(Screen.safeArea, Screen.width, Screen.height);
+            if (_helperPanel != null)
+                _helperPanel.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal,
+                    Mathf.Clamp(_root.rect.width - 32f, 1f, Mathf.Max(1f, _helperWidth)));
             _close.gameObject.SetActive(hologramVisible);
             _back.gameObject.SetActive(expanded);
             _back.anchoredPosition = new Vector2(16f, 72f);

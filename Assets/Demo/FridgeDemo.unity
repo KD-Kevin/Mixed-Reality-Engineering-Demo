@@ -1364,7 +1364,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::EngineeringDemo.FridgeDetector
   _handManager: {fileID: 2122589127}
   _model: {fileID: 4900000, guid: fc83d68581b3a1c68bdb1cf7f10606ad, type: 3}
-  _minimumScore: 0.72
+  _minimumScore: 0.5
   _detectionsPerSecond: 5
   _maximumResultAge: 0.5
 --- !u!1660057539 &9223372036854775807

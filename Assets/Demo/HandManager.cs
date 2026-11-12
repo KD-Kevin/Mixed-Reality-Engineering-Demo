@@ -37,6 +37,8 @@ namespace EngineeringDemo
         [SerializeField, Min(0.05f)] private float _wristDistanceFromCamera = 0.6f;
 
         private WebCamTexture _webcam;
+        private Camera _depthViewCamera;
+        private FridgeArDepth _arDepth;
         private HandLandmarker _task;
         private TextureFrame _textureFrame;
         private byte[] _inferencePixels;
@@ -62,11 +64,21 @@ namespace EngineeringDemo
         public Hand PrimaryHand { get; private set; }
         public string Status { get; private set; } = "Stopped";
         public bool IsRunning => _task != null;
-        public Texture CameraTexture => _webcam;
-        public bool MirrorWebcam => _mirrorWebcam;
+        public Texture CameraTexture => _arDepth?.Texture != null ? _arDepth.Texture : _webcam;
+        public bool MirrorWebcam => _arDepth?.IsReady != true && _mirrorWebcam;
         public bool CameraVerticallyMirrored => _webcam != null && _webcam.videoVerticallyMirrored;
         public float ImageAspect => 1f / _heightOverWidth;
         internal int CameraRotationAngle => _webcam != null ? _webcam.videoRotationAngle : 0;
+
+        internal void UseArDepth(Camera viewCamera) => _depthViewCamera = viewCamera;
+
+        internal void MatchArProjection() => _arDepth?.MatchViewProjection();
+
+        internal bool TryGetEnvironmentDepth(Vector2 viewportPoint, out float depth)
+        {
+            depth = 0f;
+            return _arDepth != null && _arDepth.TryGetDepth(viewportPoint, out depth);
+        }
         // Subscribers can build their own image from this frame during the callback.
         internal event Action<TextureFrame, long, ImageProcessingOptions> FramePrepared;
         public float WristDistanceFromCamera
@@ -136,6 +148,25 @@ namespace EngineeringDemo
             }
 #endif
 
+#if UNITY_ANDROID && !UNITY_EDITOR
+            // Let the demo view register its camera before choosing which source opens the device.
+            yield return null;
+            if (_depthViewCamera != null)
+            {
+                Status = "Starting AR camera";
+                _arDepth = new FridgeArDepth(_depthViewCamera, Mathf.Max(_cameraWidth, _cameraHeight));
+                yield return _arDepth.Start();
+                if (_arDepth.IsReady)
+                {
+                    yield return CaptureArFrames();
+                    yield break;
+                }
+
+                StopArCamera();
+                yield return null;
+            }
+#endif
+
             var devices = WebCamTexture.devices;
             if (devices.Length == 0)
             {
@@ -174,6 +205,30 @@ namespace EngineeringDemo
             }
 
             Status = "Tracking hands";
+        }
+
+        private IEnumerator CaptureArFrames()
+        {
+            var endOfFrame = new WaitForEndOfFrame();
+            double nextFrame = 0d;
+            double interval = 1d / Mathf.Max(1, _cameraFrameRate);
+            while (_arDepth != null)
+            {
+                _arDepth.ResizeCapture();
+                yield return endOfFrame;
+                double now = Time.realtimeSinceStartupAsDouble;
+                if (_arDepth?.HasFrame == true && now >= nextFrame)
+                {
+                    nextFrame = now + interval;
+                    SubmitFrame(_arDepth.Texture);
+                }
+            }
+        }
+
+        private void StopArCamera()
+        {
+            _arDepth?.Dispose();
+            _arDepth = null;
         }
 
         // The callback's memory belongs to MediaPipe. Copy before returning to its worker.
@@ -268,6 +323,7 @@ namespace EngineeringDemo
             {
                 _textureFrame?.Dispose();
                 _textureFrame = null;
+                StopArCamera();
                 if (_webcam != null)
                 {
                     _webcam.Stop();
@@ -283,6 +339,9 @@ namespace EngineeringDemo
         /// <summary>The camera viewport occupied by an aspect-fitted image.</summary>
         public Rect GetImageViewport(Camera camera)
         {
+            if (_arDepth?.IsReady == true)
+                return new Rect(0f, 0f, 1f, 1f);
+
             float aspect = CameraRotationAngle % 180 == 0 ? ImageAspect : 1f / ImageAspect;
             var width = Mathf.Min(1f, aspect / camera.aspect);
             var height = Mathf.Min(1f, camera.aspect / aspect);
@@ -487,7 +546,7 @@ namespace EngineeringDemo
             if (timestamp >= 0)
             {
                 UpdateHands(_currentResult, timestamp / 1000d, _heightOverWidth);
-                Status = "Tracking hands";
+                Status = _arDepth?.IsReady == true ? "Tracking hands (AR camera)" : "Tracking hands";
             }
             if (_hands.Count > 0 && Time.realtimeSinceStartupAsDouble - _lastArrivalTime > _trackingTimeoutSeconds)
             {

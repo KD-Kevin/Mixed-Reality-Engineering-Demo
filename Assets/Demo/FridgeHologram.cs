@@ -25,12 +25,15 @@ namespace EngineeringDemo
         private Quaternion _startRotation;
         private Vector3 _startScale;
         private float _elapsed;
+        private float _inspectionZoom = 1f;
 
         public bool IsSelected => IsVisible && _selected;
         public bool IsInspecting => IsSelected && CanRotate;
         internal bool IsVisible => _model != null && _model.gameObject.activeSelf;
         internal bool CanRotate => IsVisible && _elapsed >= _transitionSeconds;
         internal Quaternion InspectionRotation { get; set; }
+
+        internal void ZoomInspection(float factor) => _inspectionZoom = Mathf.Clamp(_inspectionZoom * factor, 0.6f, 1.8f);
 
         internal string ExpandedSectionName => _openSection != null ? _openSection.name : null;
 
@@ -173,6 +176,7 @@ namespace EngineeringDemo
             SetSectionHover(default);
             _model.gameObject.SetActive(false);
             _selected = false;
+            _inspectionZoom = 1f;
             InspectionRotation = Quaternion.Euler(0f, _inspectionYaw, 0f);
             return true;
         }
@@ -194,6 +198,7 @@ namespace EngineeringDemo
             _model.localScale = _startScale;
             _elapsed = 0f;
             _selected = true;
+            _inspectionZoom = 1f;
             return true;
         }
 
@@ -227,13 +232,15 @@ namespace EngineeringDemo
             var center = new Vector2(0.5f, 0.5f);
             var position = camera.ViewportToWorldPoint(new Vector3(center.x, center.y, depth));
             var rotation = camera.transform.rotation * InspectionRotation;
-            var scale = ScaleToHeight(camera, center, _inspectionHeight, depth);
+            float height = _inspectionHeight * (_openSection != null ? 1.15f : 1f);
+            float layoutWidth = _openSection != null ? 1.58f : 1.15f;
+            var left = camera.ViewportToWorldPoint(new Vector3(0.08f, 0.5f, depth));
+            var right = camera.ViewportToWorldPoint(new Vector3(0.92f, 0.5f, depth));
+            float fit = Mathf.Min(ScaleToHeight(camera, center, height, depth).x,
+                Vector3.Distance(left, right) / layoutWidth);
+            var scale = Vector3.one * (fit * _inspectionZoom);
             if (_openSection != null)
             {
-                const float layoutWidth = 1.58f;
-                var left = camera.ViewportToWorldPoint(new Vector3(0.08f, 0.5f, depth));
-                var right = camera.ViewportToWorldPoint(new Vector3(0.92f, 0.5f, depth));
-                scale = Vector3.one * Mathf.Min(scale.x * 1.15f, Vector3.Distance(left, right) / layoutWidth);
                 _spreadTime += deltaTime;
                 _openSection.Spread(Mathf.SmoothStep(0f, 1f, _spreadTime / 0.3f));
             }

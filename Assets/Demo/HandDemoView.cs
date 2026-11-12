@@ -10,6 +10,7 @@ namespace EngineeringDemo
         private enum TriggerState { Waiting, Ready, Fired }
 
         private const float PreviewGestureHoldSeconds = 0.2f;
+        private const float MissRayLength = 0.28f;
 
         [SerializeField] private HandManager _handManager;
         [SerializeField] private Camera _camera;
@@ -72,6 +73,8 @@ namespace EngineeringDemo
         private LineRenderer _fridgeOutline;
         private FridgePartCallout _partCallout;
         private readonly FridgeRotationControls _fridgeRotation = new();
+        private Rect _lastCameraPixelRect;
+        private int _lastCameraRotation;
         private float _closePreviewHold;
         private float _openPreviewHold;
         private Hand _triggerHand;
@@ -87,6 +90,12 @@ namespace EngineeringDemo
         private string _lastStatus;
         private float FireThreshold => Mathf.Min(_triggerFireExtension, _triggerReadyExtension - 0.05f);
         private bool FridgeSelected => _fridgeHologram != null && _fridgeHologram.IsSelected;
+
+        private void Awake()
+        {
+            if (_fridgeDetector != null && _handManager != null)
+                _handManager.UseArDepth(_camera);
+        }
 
         private void Start()
         {
@@ -128,12 +137,23 @@ namespace EngineeringDemo
                 }
             }
 
+            _handManager.MatchArProjection();
+            var cameraPixelRect = _camera.pixelRect;
+            int cameraRotation = _handManager.CameraRotationAngle;
+            if (cameraPixelRect != _lastCameraPixelRect || cameraRotation != _lastCameraRotation)
+            {
+                _lastCameraPixelRect = cameraPixelRect;
+                _lastCameraRotation = cameraRotation;
+                _fridgeRotation.ReleaseGrips();
+                PullTrigger(null, Time.unscaledTimeAsDouble);
+            }
+
             _preview.texture = _handManager.CameraTexture;
             var imageViewport = _handManager.GetImageViewport(_camera);
             var previewRect = _handManager.GetCameraPreviewRect(_camera, imageViewport);
             _preview.rectTransform.anchorMin = previewRect.min;
             _preview.rectTransform.anchorMax = previewRect.max;
-            _preview.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -_handManager.CameraRotationAngle);
+            _preview.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -cameraRotation);
             _preview.uvRect = new Rect(_handManager.MirrorWebcam ? 1 : 0,
                 _handManager.CameraVerticallyMirrored ? 1 : 0,
                 _handManager.MirrorWebcam ? -1 : 1, _handManager.CameraVerticallyMirrored ? -1 : 1);
@@ -239,15 +259,25 @@ namespace EngineeringDemo
             if (aiming)
             {
                 Vector2 tip = hand.IndexTip;
-                Vector2 joint = hand.GetPoint(HandPoint.IndexDip);
-                var direction = (tip - joint).normalized;
-                var end = tip + direction * DistanceToImageEdge(tip, direction);
+                Vector2 joint = hand.GetPoint(HandPoint.IndexPip);
+                var projectedFinger = tip - joint;
+                var direction = projectedFinger.sqrMagnitude >= 0.000004f ? projectedFinger.normalized : Vector2.zero;
+                float edgeDistance = DistanceToImageEdge(tip, direction);
+                var imageEdge = tip + direction * edgeDistance;
                 if (canAimAtSections)
-                    fingerHit = FindFingerSection(hand, imageViewport, tip, end);
-                locked = fingerHit.Section != null || (hasFridge && TryAimAtFridge(fridge, tip, direction, ref end));
+                    fingerHit = FindFingerSection(imageViewport, tip, imageEdge);
 
-                var endPoint = fingerHit.Section != null ? fingerHit.Point :
-                    ImageToWorld(end, Mathf.Max(1.8f, _handManager.WristDistanceFromCamera + 0.25f));
+                float distancePerImageWidth = new Vector2(direction.x, direction.y / _handManager.ImageAspect).magnitude;
+                float missDistance = distancePerImageWidth > 0f ? MissRayLength / distancePerImageWidth : 0f;
+                var end = tip + direction * Mathf.Min(edgeDistance, missDistance);
+                locked = fingerHit.Section != null;
+                if (!locked && hasFridge && TryAimAtFridge(fridge, tip, direction, edgeDistance, out var aimPoint))
+                {
+                    end = aimPoint;
+                    locked = true;
+                }
+
+                var endPoint = fingerHit.Section != null ? fingerHit.Point : GetEnvironmentEndpoint(end, imageViewport);
                 _castLine.SetPosition(0, fingertip);
                 _castLine.SetPosition(1, endPoint);
                 _castEnd.position = endPoint;
@@ -360,23 +390,16 @@ namespace EngineeringDemo
                 ? default : _fridgeHologram.FindSectionHit(_camera.ScreenPointToRay(mouse.position.ReadValue()));
         }
 
-        private FridgeHologram.SectionHit FindFingerSection(Hand hand, Rect viewport, Vector2 start, Vector2 end)
+        private FridgeHologram.SectionHit FindFingerSection(Rect viewport, Vector2 start, Vector2 end)
         {
-            if (_handManager.TryGetFingerRay(_camera, HandFinger.Index, out var ray, hand))
-            {
-                var hit = _fridgeHologram.FindSectionHit(ray, out bool hitsModel);
-                if (hitsModel)
-                    return hit;
-            }
-
-            // Use the projected finger line when the webcam's estimated depth misses the model.
+            // Use the same line that the player sees in the camera image for hologram hits.
             const int samples = 24;
             for (int i = 0; i <= samples; i++)
             {
                 var imagePoint = Vector2.Lerp(start, end, i / (float)samples);
                 var point = _handManager.ImageToViewport(imagePoint, viewport);
                 var hit = _fridgeHologram.FindSectionHit(_camera.ViewportPointToRay(point), out bool hitsModel);
-                if (hitsModel)
+                if (hitsModel || start == end)
                     return hit;
             }
 
@@ -553,6 +576,9 @@ namespace EngineeringDemo
 
         private static float DistanceToImageEdge(Vector2 origin, Vector2 direction)
         {
+            if (direction == Vector2.zero)
+                return 0f;
+
             var edgeX = direction.x >= 0 ? 1f : 0f;
             var edgeY = direction.y >= 0 ? 1f : 0f;
             var distanceX = Mathf.Abs(direction.x) > 0.0001f ? (edgeX - origin.x) / direction.x : float.PositiveInfinity;
@@ -560,28 +586,41 @@ namespace EngineeringDemo
             return Mathf.Clamp(Mathf.Min(distanceX, distanceY), 0f, 1.42f);
         }
 
-        private static bool TryAimAtFridge(Rect fridge, Vector2 origin, Vector2 direction, ref Vector2 end)
+        private static bool TryAimAtFridge(Rect fridge, Vector2 origin, Vector2 direction, float maxDistance,
+            out Vector2 aimPoint)
         {
-            if (fridge.Contains(origin))
-            {
-                end = origin;
-                return true;
-            }
+            aimPoint = origin;
             if (direction == Vector2.zero)
-                return false;
+                return fridge.Contains(origin);
 
             var bounds = new Bounds(fridge.center, new Vector3(fridge.width, fridge.height, 1f));
-            if (!bounds.IntersectRay(new Ray(origin, direction), out var distance) ||
-                distance > Vector2.Distance(origin, end))
+            float enter = 0f;
+            if (!fridge.Contains(origin) &&
+                (!bounds.IntersectRay(new Ray(origin, direction), out enter) || enter > maxDistance))
                 return false;
 
-            end = origin + direction * distance;
+            float exit = maxDistance;
+            var end = origin + direction * maxDistance;
+            if (!fridge.Contains(end) && bounds.IntersectRay(new Ray(end, -direction), out var reverseDistance))
+                exit = Mathf.Max(enter, maxDistance - reverseDistance);
+
+            float centerDistance = Vector2.Dot(fridge.center - origin, direction);
+            aimPoint = origin + direction * Mathf.Clamp(centerDistance, enter, exit);
             return true;
         }
 
         private Vector3 ImageToWorld(Vector2 point, float depth)
         {
             var viewportPoint = _handManager.ImageToViewport(point, _handManager.GetImageViewport(_camera));
+            return _camera.ViewportToWorldPoint(new Vector3(viewportPoint.x, viewportPoint.y, depth));
+        }
+
+        private Vector3 GetEnvironmentEndpoint(Vector2 imagePoint, Rect imageViewport)
+        {
+            var viewportPoint = _handManager.ImageToViewport(imagePoint, imageViewport);
+            if (!_handManager.TryGetEnvironmentDepth(viewportPoint, out float depth))
+                depth = Mathf.Max(1.8f, _handManager.WristDistanceFromCamera + 0.25f);
+
             return _camera.ViewportToWorldPoint(new Vector3(viewportPoint.x, viewportPoint.y, depth));
         }
 

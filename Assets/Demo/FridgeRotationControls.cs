@@ -21,6 +21,7 @@ namespace EngineeringDemo
         private TouchControl _secondTouch;
         private int _firstTouchId;
         private int _secondTouchId;
+        private float _lastPinchSpan;
         private Vector2 _pointerStart;
         private Quaternion _pointerModelStart;
 
@@ -114,7 +115,12 @@ namespace EngineeringDemo
                 _secondTouch.isInProgress && _firstTouch.touchId.ReadValue() == _firstTouchId &&
                 _secondTouch.touchId.ReadValue() == _secondTouchId)
             {
-                RotatePointer(camera, hologram, (_firstTouch.position.ReadValue() + _secondTouch.position.ReadValue()) * 0.5f);
+                var firstPoint = _firstTouch.position.ReadValue();
+                var secondPoint = _secondTouch.position.ReadValue();
+                float span = Mathf.Max(1f, Vector2.Distance(firstPoint, secondPoint));
+                hologram.ZoomInspection(span / _lastPinchSpan);
+                _lastPinchSpan = span;
+                RotatePointer(camera, hologram, (firstPoint + secondPoint) * 0.5f);
                 return true;
             }
 
@@ -146,8 +152,10 @@ namespace EngineeringDemo
 
             _tapTouch = null;
             var firstPosition = first.position.ReadValue();
-            var center = (firstPosition + second.position.ReadValue()) * 0.5f;
-            if ((first.press.wasPressedThisFrame || second.press.wasPressedThisFrame) &&
+            var secondPosition = second.position.ReadValue();
+            var center = (firstPosition + secondPosition) * 0.5f;
+            if ((first.phase.ReadValue() == UnityEngine.InputSystem.TouchPhase.Began ||
+                second.phase.ReadValue() == UnityEngine.InputSystem.TouchPhase.Began) &&
                 !IsOverUi(first.touchId.ReadValue()) && !IsOverUi(second.touchId.ReadValue()) &&
                 hologram.IsUnderPointer(camera, center))
             {
@@ -155,6 +163,7 @@ namespace EngineeringDemo
                 _secondTouch = second;
                 _firstTouchId = first.touchId.ReadValue();
                 _secondTouchId = second.touchId.ReadValue();
+                _lastPinchSpan = Mathf.Max(1f, Vector2.Distance(firstPosition, secondPosition));
                 BeginPointerGrab(hologram, center);
             }
 

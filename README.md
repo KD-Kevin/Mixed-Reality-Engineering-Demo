@@ -30,6 +30,7 @@ Select the outlined refrigerator, or choose **Test Hologram** to start without a
 | Open or close a section | Tap its door or rear cover | Left-click its door or rear cover |
 | See a part’s reference | Touch and hold the part | Hover the pointer over the part |
 | Rotate the hologram | Start with two fingers over the hologram and drag together | Left-click and drag the hologram |
+| Zoom the hologram | Start with two fingers over the hologram. Spread to zoom in or pinch to zoom out. | — |
 | Go back one level | Tap **Back to Fridge** from a section | Press **Esc** to leave a section or close the hologram |
 | Adjust the tracked wrist’s virtual depth | — | **Up / Down Arrow** |
 
