@@ -31,6 +31,7 @@ namespace EngineeringDemo
 
         internal const int PointCount = 21;
         private readonly Vector3[] _points = new Vector3[PointCount];
+        private double _gestureObservedAt;
 
         internal Hand() => Points = Array.AsReadOnly(_points);
 
@@ -55,6 +56,7 @@ namespace EngineeringDemo
 
         internal Vector2 LastObservedWrist { get; private set; }
         internal Quaternion? PalmRotation { get; private set; }
+        internal HandGesture ObservedGesture { get; private set; }
 
         public Vector3 GetPoint(HandPoint point) => _points[(int)point];
 
@@ -88,7 +90,7 @@ namespace EngineeringDemo
 
         internal void Apply(List<NormalizedLandmark> landmarks, List<Landmark> worldLandmarks, HandSide side,
             float blend, float deadZone, float heightOverWidth, float pinchClose, float pinchRelease,
-            float pistolMiddleExtensionLimit, int cameraRotationAngle = 0)
+            float pistolMiddleExtensionLimit, double timestamp, float gestureChangeSeconds, int cameraRotationAngle)
         {
             var wasTracked = IsTracked;
             if (side != HandSide.Unknown)
@@ -115,16 +117,34 @@ namespace EngineeringDemo
             MiddlePipExtension = wasTracked && MiddlePipExtension.HasValue && pipExtension.HasValue
                 ? Mathf.Lerp(MiddlePipExtension.Value, pipExtension.Value, blend)
                 : pipExtension;
+
+            var gesture = ClassifyGesture(worldLandmarks, heightOverWidth, pinchClose, pinchRelease,
+                pistolMiddleExtensionLimit, cameraRotationAngle);
+            ConfirmGesture(gesture, timestamp, gestureChangeSeconds);
+        }
+
+        private void ConfirmGesture(HandGesture gesture, double timestamp, float changeSeconds)
+        {
+            if (gesture != ObservedGesture)
+            {
+                ObservedGesture = gesture;
+                _gestureObservedAt = timestamp;
+            }
+
+            if (!IsTracked || timestamp - _gestureObservedAt >= changeSeconds)
+                Gesture = gesture;
+        }
+
+        private HandGesture ClassifyGesture(List<Landmark> worldLandmarks, float heightOverWidth,
+            float pinchClose, float pinchRelease, float pistolMiddleExtensionLimit, int cameraRotationAngle)
+        {
             Vector3 palmAxis = ImageDelta(GetPoint(HandPoint.MiddleMcp), Wrist, heightOverWidth);
             float palm = palmAxis.magnitude;
             float gap = ImageDelta(ThumbTip, IndexTip, heightOverWidth).magnitude;
             float pinchThreshold = IsPinching ? pinchRelease : pinchClose;
             if (palm > 0.0001f && gap <= palm * pinchThreshold &&
                 IsPinchOutsidePalm(palmAxis, heightOverWidth))
-            {
-                Gesture = HandGesture.Pinch;
-                return;
-            }
+                return HandGesture.Pinch;
 
             float index = FingerExtension(HandPoint.IndexMcp, heightOverWidth);
             float middle = MiddleFingerExtension;
@@ -137,34 +157,20 @@ namespace EngineeringDemo
             const FingerMask pistolFingers = FingerMask.Ring | FingerMask.Pinky;
             bool pistolFingersFolded = (folded & pistolFingers) == pistolFingers || (ring < 0.75f && pinky < 0.75f);
             if (folded == FingerMask.All)
-            {
-                Gesture = GetClosedHandGesture(thumb, heightOverWidth, cameraRotationAngle);
-            }
-            else if (folded == (FingerMask.Index | FingerMask.Ring | FingerMask.Pinky) && extended == FingerMask.Middle)
-            {
-                Gesture = HandGesture.MiddleFinger;
-            }
-            else if (folded == FingerMask.Pinky && extended == (FingerMask.Index | FingerMask.Middle | FingerMask.Ring))
-            {
-                Gesture = HandGesture.ThreeFingers;
-            }
-            else if (index > 0.9f && middle > 0.9f && ring > 0.9f && pinky > 0.9f)
-            {
-                Gesture = HandGesture.OpenHand;
-            }
-            else if ((index > 0.9f || (extended & FingerMask.Index) != 0) && middle <= pistolMiddleExtensionLimit &&
+                return GetClosedHandGesture(thumb, heightOverWidth, cameraRotationAngle);
+            if (folded == (FingerMask.Index | FingerMask.Ring | FingerMask.Pinky) && extended == FingerMask.Middle)
+                return HandGesture.MiddleFinger;
+            if (folded == FingerMask.Pinky && extended == (FingerMask.Index | FingerMask.Middle | FingerMask.Ring))
+                return HandGesture.ThreeFingers;
+            if (index > 0.9f && middle > 0.9f && ring > 0.9f && pinky > 0.9f)
+                return HandGesture.OpenHand;
+            if ((index > 0.9f || (extended & FingerMask.Index) != 0) && middle <= pistolMiddleExtensionLimit &&
                 pistolFingersFolded && thumbOut)
-            {
-                Gesture = HandGesture.Pistol;
-            }
-            else if (index > 0.9f && middle < 0.75f && ring < 0.75f && pinky < 0.75f)
-            {
-                Gesture = HandGesture.Point;
-            }
-            else
-            {
-                Gesture = HandGesture.Neutral;
-            }
+                return HandGesture.Pistol;
+            if (index > 0.9f && middle < 0.75f && ring < 0.75f && pinky < 0.75f)
+                return HandGesture.Point;
+
+            return HandGesture.Neutral;
         }
 
         private HandGesture GetClosedHandGesture(float thumbExtension, float heightOverWidth, int cameraRotationAngle)
@@ -184,7 +190,7 @@ namespace EngineeringDemo
 
         internal void Clear()
         {
-            Gesture = HandGesture.None;
+            Gesture = ObservedGesture = HandGesture.None;
             MiddleFingerExtension = 0f;
             MiddlePipExtension = null;
             PalmRotation = null;

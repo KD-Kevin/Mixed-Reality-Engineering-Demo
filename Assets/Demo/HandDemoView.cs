@@ -296,7 +296,8 @@ namespace EngineeringDemo
                 _castEnd.localScale = Vector3.one * 0.012f;
             }
 
-            if (PullTrigger(aiming ? hand : null, now))
+            // Keep the visible pose stable while avoiding a shot when the hand starts closing into a fist.
+            if ((!aiming || hand.ObservedGesture == HandGesture.Pistol) && PullTrigger(aiming ? hand : null, now))
             {
                 if (fingerHit.Section != null)
                 {

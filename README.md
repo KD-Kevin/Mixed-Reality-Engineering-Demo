@@ -13,6 +13,8 @@ Select the outlined refrigerator, or choose **Test Hologram** to start without a
 
 ## Hand controls
 
+Gesture changes are confirmed after **0.12 seconds** to reduce flicker as you turn your wrist. Adjust **Gesture Change Seconds** under **Hand Manager → Stabilization** in Unity.
+
 <img src="docs/images/pistol-gesture.png" width="520" alt="Pistol gesture in two panels. Arm with the middle finger extended, then select by bending its middle joint while keeping the index finger straight.">
 
 | Gesture | Action |
@@ -31,7 +33,7 @@ Select the outlined refrigerator, or choose **Test Hologram** to start without a
 | Select the detected fridge | Tap inside the outline | Left-click inside the outline |
 | Open or close a section | Tap its door or rear cover | Left-click its door or rear cover |
 | See a part’s reference | Touch and hold the part | Hover the pointer over the part |
-| Rotate the hologram | Drag two fingers together anywhere outside the on-screen controls | Left-click and drag the hologram |
+| Rotate the hologram | Drag two fingers together to turn it left, right, up, or down. Twist two fingers to roll it clockwise or counterclockwise. Start anywhere outside the on-screen controls. | Left-click and drag the hologram |
 | Zoom the hologram | Spread or pinch two fingers anywhere outside the on-screen controls | Scroll up to zoom in or down to zoom out |
 | Go back one level | Tap **Back to Fridge** from a section | Press **Esc** to leave a section or close the hologram |
 | Adjust the tracked wrist’s virtual depth | — | **Up / Down Arrow** |

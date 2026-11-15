@@ -26,6 +26,8 @@ namespace EngineeringDemo
         [SerializeField, Range(0f, 1f)] private float _minimumConfidence = 0.5f;
         [Header("Stabilization")]
         [SerializeField, Min(0f)] private float _smoothingSeconds = 0.06f;
+        [Tooltip("Seconds a different gesture must be observed before it replaces the current gesture.")]
+        [SerializeField, Min(0f)] private float _gestureChangeSeconds = 0.12f;
         [SerializeField, Min(0f)] private float _jitterDeadZone = 0.0015f;
         [SerializeField, Min(0.01f)] private float _trackingTimeoutSeconds = 0.35f;
         [SerializeField, Min(0f)] private float _pinchClose = 0.25f;
@@ -503,7 +505,8 @@ namespace EngineeringDemo
                 var worldPoints = worldLandmarks != null && i < worldLandmarks.Count
                     ? worldLandmarks[i].landmarks : null;
                 hand.Apply(points, worldPoints, side, blend, _jitterDeadZone, heightOverWidth,
-                    _pinchClose, Mathf.Max(_pinchClose, _pinchRelease), _pistolMiddleExtensionLimit, CameraRotationAngle);
+                    _pinchClose, Mathf.Max(_pinchClose, _pinchRelease), _pistolMiddleExtensionLimit,
+                    timestampSeconds, _gestureChangeSeconds, CameraRotationAngle);
                 _hands.Add(hand);
             }
 

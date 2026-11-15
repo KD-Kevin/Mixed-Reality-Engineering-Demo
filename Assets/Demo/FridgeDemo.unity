@@ -1249,6 +1249,7 @@ MonoBehaviour:
   _maximumHands: 2
   _minimumConfidence: 0.5
   _smoothingSeconds: 0.06
+  _gestureChangeSeconds: 0.12
   _jitterDeadZone: 0.0018
   _trackingTimeoutSeconds: 0.35
   _pinchClose: 0.25

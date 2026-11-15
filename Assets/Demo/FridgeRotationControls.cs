@@ -10,6 +10,7 @@ namespace EngineeringDemo
     internal sealed class FridgeRotationControls
     {
         private const float DegreesPerScreenHeight = 180f;
+        private const float MinimumTwistSpan = 8f;
         private const float ThumbZoomHoldSeconds = 0.2f;
         private const float ThumbZoomRate = 0.85f;
         private static readonly Quaternion LeftPalmAlignment = Quaternion.AngleAxis(180f, Vector3.up);
@@ -25,6 +26,8 @@ namespace EngineeringDemo
         private int _firstTouchId;
         private int _secondTouchId;
         private float _lastPinchSpan;
+        private Vector2 _lastTouchOffset;
+        private float _touchRoll;
         private Vector2 _pointerStart;
         private Quaternion _pointerModelStart;
 
@@ -138,10 +141,15 @@ namespace EngineeringDemo
             {
                 var firstPoint = _firstTouch.position.ReadValue();
                 var secondPoint = _secondTouch.position.ReadValue();
-                float span = Mathf.Max(1f, Vector2.Distance(firstPoint, secondPoint));
+                var offset = secondPoint - firstPoint;
+                float span = Mathf.Max(1f, offset.magnitude);
                 hologram.ZoomInspection(span / _lastPinchSpan);
+                if (span >= MinimumTwistSpan && _lastPinchSpan >= MinimumTwistSpan)
+                    _touchRoll += Vector2.SignedAngle(_lastTouchOffset, offset);
+
+                _lastTouchOffset = offset;
                 _lastPinchSpan = span;
-                RotatePointer(camera, hologram, (firstPoint + secondPoint) * 0.5f);
+                RotatePointer(camera, hologram, (firstPoint + secondPoint) * 0.5f, _touchRoll);
                 return true;
             }
 
@@ -183,7 +191,9 @@ namespace EngineeringDemo
                 _secondTouch = second;
                 _firstTouchId = first.touchId.ReadValue();
                 _secondTouchId = second.touchId.ReadValue();
-                _lastPinchSpan = Mathf.Max(1f, Vector2.Distance(firstPosition, secondPosition));
+                _lastTouchOffset = secondPosition - firstPosition;
+                _lastPinchSpan = Mathf.Max(1f, _lastTouchOffset.magnitude);
+                _touchRoll = 0f;
                 BeginPointerGrab(hologram, center);
             }
 
@@ -243,12 +253,13 @@ namespace EngineeringDemo
             _pointerModelStart = hologram.InspectionRotation;
         }
 
-        private void RotatePointer(Camera camera, FridgeHologram hologram, Vector2 position)
+        private void RotatePointer(Camera camera, FridgeHologram hologram, Vector2 position, float rollDegrees = 0f)
         {
             var degrees = (position - _pointerStart) * (DegreesPerScreenHeight / Mathf.Max(1f, camera.pixelHeight));
             var yaw = Quaternion.AngleAxis(-degrees.x, Vector3.up);
             var pitch = Quaternion.AngleAxis(degrees.y, Vector3.right);
-            hologram.InspectionRotation = yaw * pitch * _pointerModelStart;
+            var roll = Quaternion.AngleAxis(rollDegrees, Vector3.forward);
+            hologram.InspectionRotation = roll * yaw * pitch * _pointerModelStart;
         }
 
         private void UpdateHandRotation(FridgeHologram hologram, IReadOnlyList<Hand> hands,
