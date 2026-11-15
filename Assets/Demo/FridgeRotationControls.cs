@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -9,6 +10,8 @@ namespace EngineeringDemo
     internal sealed class FridgeRotationControls
     {
         private const float DegreesPerScreenHeight = 180f;
+        private const float ThumbZoomHoldSeconds = 0.2f;
+        private const float ThumbZoomRate = 0.85f;
         private static readonly Quaternion LeftPalmAlignment = Quaternion.AngleAxis(180f, Vector3.up);
 
         private Mouse _mouseGrab;
@@ -30,6 +33,10 @@ namespace EngineeringDemo
         private bool _holdingFist;
         private Quaternion _fistStart;
         private Quaternion _fistModelStart;
+        private Hand _zoomHand;
+        private HandGesture _zoomGesture;
+        private double _zoomStartedAt;
+        private double _lastZoomUpdate;
 
         public void ReleaseGrips()
         {
@@ -40,6 +47,12 @@ namespace EngineeringDemo
         }
 
         private void ReleaseHandGrip()
+        {
+            ClearHandRotation();
+            _zoomHand = null;
+        }
+
+        private void ClearHandRotation()
         {
             _rotationHand = null;
             _threeFingerStartedAt = null;
@@ -62,19 +75,27 @@ namespace EngineeringDemo
                 return true;
             }
 
-            if (UpdateMouse(camera, hologram))
+            var mouse = Mouse.current;
+            if (mouse != null && !IsOverUi(mouse.deviceId))
+            {
+                float scroll = mouse.scroll.ReadValue().y;
+                if (scroll != 0f)
+                    hologram.ZoomInspection(Mathf.Pow(1.12f, Mathf.Sign(scroll)));
+            }
+
+            if (UpdateMouse(camera, hologram, mouse))
             {
                 ReleaseHandGrip();
                 return true;
             }
 
             UpdateHandRotation(hologram, tracking.Hands, tracking.TrackingTimestamp, threeFingerAlignHoldSeconds);
+            UpdateHandZoom(hologram, tracking.Hands, tracking.TrackingTimestamp);
             return false;
         }
 
-        private bool UpdateMouse(Camera camera, FridgeHologram hologram)
+        private bool UpdateMouse(Camera camera, FridgeHologram hologram, Mouse mouse)
         {
-            var mouse = Mouse.current;
             if (mouse == null)
             {
                 _mouseGrab = null;
@@ -156,8 +177,7 @@ namespace EngineeringDemo
             var center = (firstPosition + secondPosition) * 0.5f;
             if ((first.phase.ReadValue() == UnityEngine.InputSystem.TouchPhase.Began ||
                 second.phase.ReadValue() == UnityEngine.InputSystem.TouchPhase.Began) &&
-                !IsOverUi(first.touchId.ReadValue()) && !IsOverUi(second.touchId.ReadValue()) &&
-                hologram.IsUnderPointer(camera, center))
+                !IsOverUi(first.touchId.ReadValue()) && !IsOverUi(second.touchId.ReadValue()))
             {
                 _firstTouch = first;
                 _secondTouch = second;
@@ -236,7 +256,7 @@ namespace EngineeringDemo
         {
             if (!CanRotateWithHand(_rotationHand))
             {
-                ReleaseHandGrip();
+                ClearHandRotation();
                 foreach (var hand in hands)
                 {
                     if (!CanRotateWithHand(hand))
@@ -274,6 +294,43 @@ namespace EngineeringDemo
             }
 
             hologram.InspectionRotation = current * Quaternion.Inverse(_fistStart) * _fistModelStart;
+        }
+
+        private void UpdateHandZoom(FridgeHologram hologram, IReadOnlyList<Hand> hands, double trackingTimestamp)
+        {
+            Hand zoomHand = null;
+            foreach (var hand in hands)
+            {
+                if (hand.Gesture is HandGesture.ThumbsUp or HandGesture.ThumbsDown)
+                {
+                    zoomHand = hand;
+                    break;
+                }
+            }
+
+            if (zoomHand == null)
+            {
+                _zoomHand = null;
+                return;
+            }
+
+            var gesture = zoomHand.Gesture;
+            if (!ReferenceEquals(_zoomHand, zoomHand) || _zoomGesture != gesture)
+            {
+                _zoomHand = zoomHand;
+                _zoomGesture = gesture;
+                _zoomStartedAt = _lastZoomUpdate = trackingTimestamp;
+                return;
+            }
+
+            double zoomStart = Math.Max(_lastZoomUpdate, _zoomStartedAt + ThumbZoomHoldSeconds);
+            if (trackingTimestamp > zoomStart)
+            {
+                float direction = gesture == HandGesture.ThumbsUp ? 1f : -1f;
+                float elapsed = Mathf.Min(0.1f, (float)(trackingTimestamp - zoomStart));
+                hologram.ZoomInspection(Mathf.Exp(direction * ThumbZoomRate * elapsed));
+            }
+            _lastZoomUpdate = trackingTimestamp;
         }
 
         private static bool CanRotateWithHand(Hand hand) => hand?.PalmRotation is Quaternion &&

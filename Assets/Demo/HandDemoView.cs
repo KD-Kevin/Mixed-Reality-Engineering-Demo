@@ -11,6 +11,7 @@ namespace EngineeringDemo
 
         private const float PreviewGestureHoldSeconds = 0.2f;
         private const float MissRayLength = 0.28f;
+        private const double FridgeAimGraceSeconds = 0.18;
 
         [SerializeField] private HandManager _handManager;
         [SerializeField] private Camera _camera;
@@ -27,6 +28,8 @@ namespace EngineeringDemo
         [Header("Fridge Aim")]
         [SerializeField] private FridgeDetector _fridgeDetector;
         [SerializeField] private FridgeHologram _fridgeHologram;
+        [Tooltip("Extra aiming tolerance around the fridge box, as a fraction of camera image width.")]
+        [SerializeField, Range(0f, 0.1f)] private float _fridgeAimPadding = 0.035f;
         [Tooltip("Seconds to hold three fingers before the fridge matches the hand's rotation.")]
         [SerializeField, Min(0f)] private float _threeFingerAlignHoldSeconds = 0.3f;
         [Tooltip("Middle finger PIP extension needed to rearm. One is straight. Zero is bent 90 degrees or more.")]
@@ -47,6 +50,8 @@ namespace EngineeringDemo
         [SerializeField, ColorUsage(false)] private Color _pistolColor = new Color(1f, 0.55f, 0.15f);
         [SerializeField, ColorUsage(false)] private Color _middleFingerColor = new Color(0.38f, 0.72f, 1f);
         [SerializeField, ColorUsage(false)] private Color _threeFingersColor = new Color(1f, 0.93f, 0.2f);
+        [SerializeField, ColorUsage(false)] private Color _thumbsUpColor = new Color(0.15f, 0.92f, 0.62f);
+        [SerializeField, ColorUsage(false)] private Color _thumbsDownColor = new Color(0.82f, 0.47f, 1f);
         [Tooltip("Hue rotation in degrees for all left-hand gesture and trigger colors.")]
         [SerializeField, Range(-180f, 180f)] private float _leftHandHue = 60f;
 
@@ -78,6 +83,9 @@ namespace EngineeringDemo
         private float _closePreviewHold;
         private float _openPreviewHold;
         private Hand _triggerHand;
+        private Hand _fridgeAimHand;
+        private Vector2 _lastFridgeAimPoint;
+        private double _lastFridgeAimTime;
         private TriggerState _triggerState;
         private double _triggerReleaseStartedAt = -1d;
         private string _shotMessage;
@@ -145,6 +153,7 @@ namespace EngineeringDemo
                 _lastCameraPixelRect = cameraPixelRect;
                 _lastCameraRotation = cameraRotation;
                 _fridgeRotation.ReleaseGrips();
+                _fridgeAimHand = null;
                 PullTrigger(null, Time.unscaledTimeAsDouble);
             }
 
@@ -253,6 +262,8 @@ namespace EngineeringDemo
             Vector3 fingertip = default;
             var aiming = hand?.Gesture == HandGesture.Pistol &&
                 _handManager.TryGetWorldPoint(_camera, hand, HandPoint.IndexTip, out fingertip);
+            if (!aiming || !hasFridge || grabbedPointer)
+                _fridgeAimHand = null;
             var locked = false;
             _castLine.enabled = aiming;
             _castEnd.gameObject.SetActive(aiming);
@@ -271,7 +282,8 @@ namespace EngineeringDemo
                 float missDistance = distancePerImageWidth > 0f ? MissRayLength / distancePerImageWidth : 0f;
                 var end = tip + direction * Mathf.Min(edgeDistance, missDistance);
                 locked = fingerHit.Section != null;
-                if (!locked && hasFridge && TryAimAtFridge(fridge, tip, direction, edgeDistance, out var aimPoint))
+                if (!locked && hasFridge && !grabbedPointer &&
+                    TryLockFridge(fridge, hand, tip, direction, edgeDistance, now, out var aimPoint))
                 {
                     end = aimPoint;
                     locked = true;
@@ -370,7 +382,7 @@ namespace EngineeringDemo
             if (expanded)
                 controls = "Aim at a part for its reference. Select the door to go back.";
             else if (_fridgeHologram != null && _fridgeHologram.IsVisible)
-                controls = "Select a door or rear cover. Fist or drag rotates.";
+                controls = "Select a door or rear cover. Drag to rotate. Hold thumbs up or down to zoom.";
             SetStatus("FRIDGE DEMO\n" + _handManager.Status + "\n" + fridgeStatus + "\n" + aimStatus +
                 "   [" + gesture + "]\n" + triggerStatus + "\n" + triggerReadout + "\n" + controls);
         }
@@ -609,6 +621,34 @@ namespace EngineeringDemo
             return true;
         }
 
+        private bool TryLockFridge(Rect fridge, Hand hand, Vector2 tip, Vector2 direction, float maxDistance,
+            double now, out Vector2 point)
+        {
+            var padding = new Vector2(_fridgeAimPadding, _fridgeAimPadding / _handManager.ImageAspect);
+            var aimBounds = new Rect(fridge.min - padding, fridge.size + 2f * padding);
+            if (TryAimAtFridge(fridge, tip, direction, maxDistance, out point) ||
+                TryAimAtFridge(aimBounds, tip, direction, maxDistance, out point))
+            {
+                // Keep assisted hits on the detected surface so AR depth doesn't sample just outside it.
+                var inset = Vector2.Min(fridge.size * 0.1f, new Vector2(0.006f, 0.006f));
+                point = Vector2.Max(fridge.min + inset, Vector2.Min(fridge.max - inset, point));
+                _fridgeAimHand = hand;
+                _lastFridgeAimPoint = point;
+                _lastFridgeAimTime = now;
+                return true;
+            }
+
+            // A small shift during the trigger curl should not drop a lock on the same fridge.
+            if (ReferenceEquals(hand, _fridgeAimHand) && _triggerState == TriggerState.Ready &&
+                now - _lastFridgeAimTime <= FridgeAimGraceSeconds && aimBounds.Contains(_lastFridgeAimPoint))
+            {
+                point = _lastFridgeAimPoint;
+                return true;
+            }
+
+            return false;
+        }
+
         private Vector3 ImageToWorld(Vector2 point, float depth)
         {
             var viewportPoint = _handManager.ImageToViewport(point, _handManager.GetImageViewport(_camera));
@@ -659,6 +699,8 @@ namespace EngineeringDemo
                 HandGesture.Pistol => _pistolColor,
                 HandGesture.MiddleFinger => _middleFingerColor,
                 HandGesture.ThreeFingers => _threeFingersColor,
+                HandGesture.ThumbsUp => _thumbsUpColor,
+                HandGesture.ThumbsDown => _thumbsDownColor,
                 _ => _neutralColor
             };
 

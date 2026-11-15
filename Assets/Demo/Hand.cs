@@ -16,7 +16,7 @@ namespace EngineeringDemo
         PinkyMcp, PinkyPip, PinkyDip, PinkyTip
     }
 
-    public enum HandGesture { None, Neutral, OpenHand, Fist, Pinch, Point, Pistol, MiddleFinger, ThreeFingers }
+    public enum HandGesture { None, Neutral, OpenHand, Fist, Pinch, Point, Pistol, MiddleFinger, ThreeFingers, ThumbsUp, ThumbsDown }
     public enum HandSide { Unknown, Left, Right }
     public enum HandFinger { Thumb, Index, Middle, Ring, Pinky }
 
@@ -134,9 +134,11 @@ namespace EngineeringDemo
             float thumbSpread = ImageDelta(ThumbTip, GetPoint(HandPoint.IndexMcp), heightOverWidth).magnitude;
             bool thumbOut = thumb > 0.85f && thumbSpread > palm * 0.6f;
             var folded = GetFoldedFingers(worldLandmarks, heightOverWidth, out var extended);
+            const FingerMask pistolFingers = FingerMask.Ring | FingerMask.Pinky;
+            bool pistolFingersFolded = (folded & pistolFingers) == pistolFingers || (ring < 0.75f && pinky < 0.75f);
             if (folded == FingerMask.All)
             {
-                Gesture = HandGesture.Fist;
+                Gesture = GetClosedHandGesture(thumb, heightOverWidth, cameraRotationAngle);
             }
             else if (folded == (FingerMask.Index | FingerMask.Ring | FingerMask.Pinky) && extended == FingerMask.Middle)
             {
@@ -150,7 +152,8 @@ namespace EngineeringDemo
             {
                 Gesture = HandGesture.OpenHand;
             }
-            else if (index > 0.9f && middle <= pistolMiddleExtensionLimit && ring < 0.75f && pinky < 0.75f && thumbOut)
+            else if ((index > 0.9f || (extended & FingerMask.Index) != 0) && middle <= pistolMiddleExtensionLimit &&
+                pistolFingersFolded && thumbOut)
             {
                 Gesture = HandGesture.Pistol;
             }
@@ -162,6 +165,21 @@ namespace EngineeringDemo
             {
                 Gesture = HandGesture.Neutral;
             }
+        }
+
+        private HandGesture GetClosedHandGesture(float thumbExtension, float heightOverWidth, int cameraRotationAngle)
+        {
+            if (thumbExtension < 0.82f)
+                return HandGesture.Fist;
+
+            var direction = ImageDelta(ThumbTip, GetPoint(HandPoint.ThumbMcp), heightOverWidth);
+            direction = Quaternion.AngleAxis(cameraRotationAngle, Vector3.forward) * direction;
+            float palmWidth = ImageDelta(GetPoint(HandPoint.IndexMcp), GetPoint(HandPoint.PinkyMcp), heightOverWidth).magnitude;
+            float minimumVerticalReach = Mathf.Max(palmWidth * 0.5f, 0.0001f);
+            if (Mathf.Abs(direction.y) < Mathf.Max(minimumVerticalReach, Mathf.Abs(direction.x) * 1.2f))
+                return HandGesture.Fist;
+
+            return direction.y < 0f ? HandGesture.ThumbsUp : HandGesture.ThumbsDown;
         }
 
         internal void Clear()

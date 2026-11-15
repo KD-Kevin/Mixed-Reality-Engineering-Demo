@@ -1313,6 +1313,7 @@ MonoBehaviour:
   _rayTipWidth: 0.18
   _fridgeDetector: {fileID: 2131436093}
   _fridgeHologram: {fileID: 1895107446}
+  _fridgeAimPadding: 0.035
   _threeFingerAlignHoldSeconds: 0.3
   _triggerReadyExtension: 0.3
   _triggerFireExtension: 0.2
@@ -1330,6 +1331,8 @@ MonoBehaviour:
   _pistolColor: {r: 1, g: 0.55, b: 0.15, a: 1}
   _middleFingerColor: {r: 0.38, g: 0.72, b: 1, a: 1}
   _threeFingersColor: {r: 1, g: 0.93, b: 0.2, a: 1}
+  _thumbsUpColor: {r: 0.15, g: 0.92, b: 0.62, a: 1}
+  _thumbsDownColor: {r: 0.82, g: 0.47, b: 1, a: 1}
   _leftHandHue: -82
   _usePistolReadyColor: 1
   _pistolReadyColor: {r: 0.107794285, g: 0, b: 1, a: 1}
@@ -1364,9 +1367,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::EngineeringDemo.FridgeDetector
   _handManager: {fileID: 2122589127}
   _model: {fileID: 4900000, guid: fc83d68581b3a1c68bdb1cf7f10606ad, type: 3}
-  _minimumScore: 0.5
+  _minimumScore: 0.43
   _detectionsPerSecond: 5
   _maximumResultAge: 0.5
+  _stationaryHoldSeconds: 0.65
+  _boxSmoothingSeconds: 0.12
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
