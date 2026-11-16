@@ -2,7 +2,7 @@
 
 FridgeDemo detects a refrigerator in the camera feed and brings an interactive 3D hologram into the center of the view. Open the freezer, refrigerator compartment, or rear cover to inspect an exploded view and see the parts’ diagram references. Use camera-tracked hand gestures, Android touch, or a mouse in Unity.
 
-**Demo video coming to YouTube.**
+**[Watch the demo on YouTube](https://youtu.be/1AZ-4pKSNWk)**
 
 ## How to use
 
