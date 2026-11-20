@@ -39,7 +39,6 @@ namespace EngineeringDemo
         public HandGesture Gesture { get; private set; }
         public bool IsTracked => Gesture != HandGesture.None;
         public bool IsPinching => Gesture == HandGesture.Pinch;
-        public float MiddleFingerExtension { get; private set; }
         /// <summary>Middle finger PIP extension. One is straight, zero is bent 90 degrees or more.</summary>
         public float? MiddlePipExtension { get; private set; }
 
@@ -112,7 +111,6 @@ namespace EngineeringDemo
             }
 
             UpdatePalmRotation(worldLandmarks, heightOverWidth, wasTracked ? blend : 1f, cameraRotationAngle);
-            MiddleFingerExtension = FingerExtension(HandPoint.MiddleMcp, heightOverWidth);
             var pipExtension = MeasureMiddlePipExtension(landmarks, worldLandmarks, heightOverWidth);
             MiddlePipExtension = wasTracked && MiddlePipExtension.HasValue && pipExtension.HasValue
                 ? Mathf.Lerp(MiddlePipExtension.Value, pipExtension.Value, blend)
@@ -147,7 +145,7 @@ namespace EngineeringDemo
                 return HandGesture.Pinch;
 
             float index = FingerExtension(HandPoint.IndexMcp, heightOverWidth);
-            float middle = MiddleFingerExtension;
+            float middle = FingerExtension(HandPoint.MiddleMcp, heightOverWidth);
             float ring = FingerExtension(HandPoint.RingMcp, heightOverWidth);
             float pinky = FingerExtension(HandPoint.PinkyMcp, heightOverWidth);
             float thumb = FingerExtension(HandPoint.ThumbCmc, heightOverWidth);
@@ -191,7 +189,6 @@ namespace EngineeringDemo
         internal void Clear()
         {
             Gesture = ObservedGesture = HandGesture.None;
-            MiddleFingerExtension = 0f;
             MiddlePipExtension = null;
             PalmRotation = null;
             Array.Clear(_points, 0, PointCount);

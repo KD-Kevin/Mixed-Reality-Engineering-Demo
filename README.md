@@ -13,7 +13,7 @@ Select the outlined refrigerator, or choose **Test Hologram** to start without a
 
 ## Hand controls
 
-Gesture changes are confirmed after **0.12 seconds** to reduce flicker as you turn your wrist. Adjust **Gesture Change Seconds** under **Hand Manager → Stabilization** in Unity.
+Adjust **Gesture Change Seconds** under **Stabilization** in the scene's assigned **Hand Tracking Settings** asset. **HandDemoTracking** uses a 0.12-second delay. **FridgeDemoTracking** uses immediate gesture changes and the fridge trigger applies its own release hold.
 
 <img src="docs/images/pistol-gesture.png" width="520" alt="Pistol gesture in two panels. Arm with the middle finger extended, then select by bending its middle joint while keeping the index finger straight.">
 

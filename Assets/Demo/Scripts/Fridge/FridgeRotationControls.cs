@@ -162,8 +162,10 @@ namespace EngineeringDemo
 
             TouchControl first = null;
             TouchControl second = null;
-            foreach (var touch in screen.touches)
+            var touches = screen.touches;
+            for (int i = 0; i < touches.Count; i++)
             {
+                var touch = touches[i];
                 if (!touch.isInProgress)
                     continue;
                 if (first == null)
@@ -262,14 +264,14 @@ namespace EngineeringDemo
             hologram.InspectionRotation = roll * yaw * pitch * _pointerModelStart;
         }
 
-        private void UpdateHandRotation(FridgeHologram hologram, IReadOnlyList<Hand> hands,
-            double trackingTimestamp, float threeFingerAlignHoldSeconds)
+        private void UpdateHandRotation(FridgeHologram hologram, IReadOnlyList<Hand> hands, double trackingTimestamp, float threeFingerAlignHoldSeconds)
         {
             if (!CanRotateWithHand(_rotationHand))
             {
                 ClearHandRotation();
-                foreach (var hand in hands)
+                for (int i = 0; i < hands.Count; i++)
                 {
+                    var hand = hands[i];
                     if (!CanRotateWithHand(hand))
                         continue;
 
@@ -310,8 +312,9 @@ namespace EngineeringDemo
         private void UpdateHandZoom(FridgeHologram hologram, IReadOnlyList<Hand> hands, double trackingTimestamp)
         {
             Hand zoomHand = null;
-            foreach (var hand in hands)
+            for (int i = 0; i < hands.Count; i++)
             {
+                var hand = hands[i];
                 if (hand.Gesture is HandGesture.ThumbsUp or HandGesture.ThumbsDown)
                 {
                     zoomHand = hand;

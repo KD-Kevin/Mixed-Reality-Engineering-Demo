@@ -79,7 +79,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1ae541c00cfe449cb49731f0d7cb2638, type: 3}
   m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::EngineeringDemo.FridgeSection
+  m_EditorClassIdentifier: EngineeringDemo::EngineeringDemo.FridgeSection
   _closed: {fileID: 1020}
   _selectors:
   - {fileID: 1043}
@@ -1553,7 +1553,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1ae541c00cfe449cb49731f0d7cb2638, type: 3}
   m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::EngineeringDemo.FridgeSection
+  m_EditorClassIdentifier: EngineeringDemo::EngineeringDemo.FridgeSection
   _closed: {fileID: 1310}
   _selectors:
   - {fileID: 1333}
@@ -3710,7 +3710,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1ae541c00cfe449cb49731f0d7cb2638, type: 3}
   m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::EngineeringDemo.FridgeSection
+  m_EditorClassIdentifier: EngineeringDemo::EngineeringDemo.FridgeSection
   _closed: {fileID: 1740}
   _selectors:
   - {fileID: 1753}

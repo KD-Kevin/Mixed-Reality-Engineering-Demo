@@ -63,8 +63,8 @@ namespace EngineeringDemo
             internal float HitDistance(Ray ray)
             {
                 float nearest = float.PositiveInfinity;
-                foreach (var renderer in _renderers)
-                    nearest = Mathf.Min(nearest, FridgeSection.HitDistance(renderer, ray));
+                for (int i = 0; i < _renderers.Length; i++)
+                    nearest = Mathf.Min(nearest, FridgeSection.HitDistance(_renderers[i], ray));
                 return nearest;
             }
 
@@ -76,8 +76,8 @@ namespace EngineeringDemo
                     properties.SetColor(LegacyColor, color);
                 }
 
-                foreach (var renderer in _renderers)
-                    renderer.SetPropertyBlock(tint.HasValue ? properties : null);
+                for (int i = 0; i < _renderers.Length; i++)
+                    _renderers[i].SetPropertyBlock(tint.HasValue ? properties : null);
             }
         }
 
@@ -85,8 +85,8 @@ namespace EngineeringDemo
         {
             _color = new MaterialPropertyBlock();
             _section = new Part(_closed.transform, _selectors);
-            foreach (var part in _parts)
-                part.Initialize();
+            for (int i = 0; i < _parts.Length; i++)
+                _parts[i].Initialize();
             Show(false, true);
         }
 
@@ -98,15 +98,15 @@ namespace EngineeringDemo
             if (!expanded)
                 return;
 
-            foreach (var part in _parts)
-                part.Colorize(_color, ExpandedColor);
+            for (int i = 0; i < _parts.Length; i++)
+                _parts[i].Colorize(_color, ExpandedColor);
             Spread(0f);
         }
 
         internal void Spread(float blend)
         {
-            foreach (var part in _parts)
-                part.Spread(blend);
+            for (int i = 0; i < _parts.Length; i++)
+                _parts[i].Spread(blend);
         }
 
         internal Part FindSelector(Renderer renderer) =>
@@ -119,8 +119,9 @@ namespace EngineeringDemo
             nearest = float.PositiveInfinity;
 
             Part hit = null;
-            foreach (var part in _parts)
+            for (int i = 0; i < _parts.Length; i++)
             {
+                var part = _parts[i];
                 float distance = part.HitDistance(ray);
                 if (distance >= nearest)
                     continue;

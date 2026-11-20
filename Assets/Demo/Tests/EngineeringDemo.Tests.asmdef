@@ -1,0 +1,14 @@
+{
+    "name": "EngineeringDemo.Tests",
+    "rootNamespace": "EngineeringDemo.Tests",
+    "references": [
+        "EngineeringDemo",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}

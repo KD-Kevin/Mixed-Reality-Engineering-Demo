@@ -14,29 +14,9 @@ namespace EngineeringDemo
     [DisallowMultipleComponent]
     public sealed class HandManager : MonoBehaviour
     {
-        [Header("Tracking")]
-        [SerializeField] private TextAsset _model;
-        [SerializeField] private bool _useWebcam = true;
-        [SerializeField] private string _webcamName = "";
-        [SerializeField] private bool _mirrorWebcam = true;
-        [SerializeField, Min(1)] private int _cameraWidth = 640;
-        [SerializeField, Min(1)] private int _cameraHeight = 480;
-        [SerializeField, Range(1, 60)] private int _cameraFrameRate = 30;
-        [SerializeField, Range(1, 2)] private int _maximumHands = 2;
-        [SerializeField, Range(0f, 1f)] private float _minimumConfidence = 0.5f;
-        [Header("Stabilization")]
-        [SerializeField, Min(0f)] private float _smoothingSeconds = 0.06f;
-        [Tooltip("Seconds a different gesture must be observed before it replaces the current gesture.")]
-        [SerializeField, Min(0f)] private float _gestureChangeSeconds = 0.12f;
-        [SerializeField, Min(0f)] private float _jitterDeadZone = 0.0015f;
-        [SerializeField, Min(0.01f)] private float _trackingTimeoutSeconds = 0.35f;
-        [SerializeField, Min(0f)] private float _pinchClose = 0.25f;
-        [SerializeField, Min(0f)] private float _pinchRelease = 0.35f;
-        [Tooltip("How far the middle finger can straighten while the hand still counts as Pistol.")]
-        [SerializeField, Range(0.75f, 1f)] private float _pistolMiddleExtensionLimit = 1f;
-        [Header("World placement")]
-        [Tooltip("Wrist depth along the camera's forward axis, in Unity world units.")]
-        [SerializeField, Min(0.05f)] private float _wristDistanceFromCamera = 0.6f;
+        [SerializeField] private HandTrackingSettings _settings;
+
+        private float _wristDistanceFromCamera = 0.6f;
 
         private WebCamTexture _webcam;
         private Camera _depthViewCamera;
@@ -67,7 +47,7 @@ namespace EngineeringDemo
         public string Status { get; private set; } = "Stopped";
         public bool IsRunning => _task != null;
         public Texture CameraTexture => _arDepth?.Texture != null ? _arDepth.Texture : _webcam;
-        public bool MirrorWebcam => _arDepth?.IsReady != true && _mirrorWebcam;
+        public bool MirrorWebcam => _arDepth?.IsReady != true && _settings != null && _settings.MirrorWebcam;
         public bool CameraVerticallyMirrored => _webcam != null && _webcam.videoVerticallyMirrored;
         public float ImageAspect => 1f / _heightOverWidth;
         internal int CameraRotationAngle => _webcam != null ? _webcam.videoRotationAngle : 0;
@@ -89,12 +69,27 @@ namespace EngineeringDemo
             set => _wristDistanceFromCamera = Mathf.Max(0.05f, value);
         }
 
-        private void OnEnable() => _startup = StartCoroutine(StartTracking());
+        private void Awake()
+        {
+            if (_settings != null)
+                WristDistanceFromCamera = _settings.InitialWristDistance;
+        }
+
+        private void OnEnable()
+        {
+            if (_settings == null)
+            {
+                Fail("Assign Hand Tracking Settings to HandManager.");
+                return;
+            }
+
+            _startup = StartCoroutine(StartTracking());
+        }
 
         private IEnumerator StartTracking()
         {
             Status = "Loading hand model";
-            if (_model == null)
+            if (_settings.Model == null)
             {
                 Fail("Assign the hand landmark model to HandManager.");
                 yield break;
@@ -103,11 +98,11 @@ namespace EngineeringDemo
             try
             {
                 var options = new HandLandmarkerOptions(
-                    new BaseOptions(BaseOptions.Delegate.CPU, modelAssetBuffer: _model.bytes),
-                    runningMode: RunningMode.LIVE_STREAM, numHands: _maximumHands,
-                    minHandDetectionConfidence: _minimumConfidence,
-                    minHandPresenceConfidence: _minimumConfidence,
-                    minTrackingConfidence: _minimumConfidence, resultCallback: OnTrackingResult);
+                    new BaseOptions(BaseOptions.Delegate.CPU, modelAssetBuffer: _settings.Model.bytes),
+                    runningMode: RunningMode.LIVE_STREAM, numHands: _settings.MaximumHands,
+                    minHandDetectionConfidence: _settings.MinimumConfidence,
+                    minHandPresenceConfidence: _settings.MinimumConfidence,
+                    minTrackingConfidence: _settings.MinimumConfidence, resultCallback: OnTrackingResult);
                 _task = HandLandmarker.CreateFromOptions(options);
                 lock (_resultLock)
                     _acceptResults = true;
@@ -118,7 +113,7 @@ namespace EngineeringDemo
                 yield break;
             }
 
-            if (!_useWebcam)
+            if (!_settings.UseWebcam)
             {
                 Status = "Waiting for external camera frames";
                 yield break;
@@ -156,7 +151,7 @@ namespace EngineeringDemo
             if (_depthViewCamera != null)
             {
                 Status = "Starting AR camera";
-                _arDepth = new FridgeArDepth(_depthViewCamera, Mathf.Max(_cameraWidth, _cameraHeight));
+                _arDepth = new FridgeArDepth(_depthViewCamera, Mathf.Max(_settings.CameraWidth, _settings.CameraHeight));
                 yield return _arDepth.Start();
                 if (_arDepth.IsReady)
                 {
@@ -176,7 +171,7 @@ namespace EngineeringDemo
                 yield break;
             }
 
-            var deviceName = _webcamName;
+            var deviceName = _settings.WebcamName;
             if (string.IsNullOrEmpty(deviceName))
             {
                 var device = devices[0];
@@ -193,7 +188,7 @@ namespace EngineeringDemo
                 yield break;
             }
 
-            _webcam = new WebCamTexture(deviceName, _cameraWidth, _cameraHeight, _cameraFrameRate);
+            _webcam = new WebCamTexture(deviceName, _settings.CameraWidth, _settings.CameraHeight, _settings.CameraFrameRate);
             _webcam.Play();
             Status = "Starting " + deviceName;
             var deadline = Time.realtimeSinceStartupAsDouble + 10;
@@ -213,7 +208,7 @@ namespace EngineeringDemo
         {
             var endOfFrame = new WaitForEndOfFrame();
             double nextFrame = 0d;
-            double interval = 1d / Mathf.Max(1, _cameraFrameRate);
+            double interval = 1d / Mathf.Max(1, _settings.CameraFrameRate);
             while (_arDepth != null)
             {
                 _arDepth.ResizeCapture();
@@ -247,7 +242,7 @@ namespace EngineeringDemo
         }
 
         /// <summary>
-        /// Submit an external camera texture on the main thread when Use Webcam is disabled.
+        /// Submits an external camera texture on the main thread when Use Webcam is disabled in the tracking settings.
         /// </summary>
         public void SubmitFrame(Texture texture, bool mirrorHorizontally = false,
             bool verticallyMirrored = false, int rotationDegrees = 0)
@@ -338,61 +333,21 @@ namespace EngineeringDemo
             }
         }
 
-        /// <summary>The camera viewport occupied by an aspect-fitted image.</summary>
-        public Rect GetImageViewport(Camera camera)
-        {
-            if (_arDepth?.IsReady == true)
-                return new Rect(0f, 0f, 1f, 1f);
+        /// <summary>The camera viewport occupied by the camera image.</summary>
+        public Rect GetImageViewport(Camera camera) => _arDepth?.IsReady == true
+            ? new Rect(0f, 0f, 1f, 1f)
+            : HandImageProjection.GetImageViewport(ImageAspect, camera.aspect, CameraRotationAngle);
 
-            float aspect = CameraRotationAngle % 180 == 0 ? ImageAspect : 1f / ImageAspect;
-            var width = Mathf.Min(1f, aspect / camera.aspect);
-            var height = Mathf.Min(1f, camera.aspect / aspect);
-            return new Rect((1f - width) * 0.5f, (1f - height) * 0.5f, width, height);
-        }
+        internal Rect GetCameraPreviewRect(Camera camera, Rect imageViewport) =>
+            HandImageProjection.GetPreviewRect(imageViewport, camera.aspect, CameraRotationAngle);
 
-        internal Rect GetCameraPreviewRect(Camera camera, Rect imageViewport)
-        {
-            if (CameraRotationAngle % 180 == 0)
-                return imageViewport;
+        internal Vector2 ImageToViewport(Vector2 rawPoint, Rect viewport) =>
+            HandImageProjection.ImageToViewport(rawPoint, viewport, CameraRotationAngle);
 
-            // A quarter turn swaps physical pixel dimensions, rather than normalized dimensions.
-            var size = new Vector2(imageViewport.height / camera.aspect, imageViewport.width * camera.aspect);
-            return new Rect(imageViewport.center - size * 0.5f, size);
-        }
+        internal Vector2 ViewportToImage(Vector2 point, Rect viewport) =>
+            HandImageProjection.ViewportToImage(point, viewport, CameraRotationAngle);
 
-        internal Vector2 ImageToViewport(Vector2 rawPoint, Rect viewport)
-        {
-            var displayPoint = RotateImagePoint(rawPoint, CameraRotationAngle);
-            return new Vector2(viewport.xMin + displayPoint.x * viewport.width,
-                viewport.yMax - displayPoint.y * viewport.height);
-        }
-
-        internal Vector2 ViewportToImage(Vector2 point, Rect viewport)
-        {
-            var displayPoint = new Vector2((point.x - viewport.xMin) / viewport.width,
-                (viewport.yMax - point.y) / viewport.height);
-            return RotateImagePoint(displayPoint, -CameraRotationAngle);
-        }
-
-        internal Rect GetDisplayImageBox(Rect box)
-        {
-            var first = RotateImagePoint(box.min, CameraRotationAngle);
-            var second = RotateImagePoint(box.max, CameraRotationAngle);
-            var min = Vector2.Min(first, second);
-            var max = Vector2.Max(first, second);
-            return new Rect(min, max - min);
-        }
-
-        private static Vector2 RotateImagePoint(Vector2 point, int clockwiseDegrees)
-        {
-            return ((clockwiseDegrees % 360 + 360) % 360) switch
-            {
-                90 => new Vector2(1f - point.y, point.x),
-                180 => Vector2.one - point,
-                270 => new Vector2(point.y, 1f - point.x),
-                _ => point
-            };
-        }
+        internal Rect GetDisplayImageBox(Rect box) => HandImageProjection.GetDisplayBox(box, CameraRotationAngle);
 
         public bool TryGetWorldPoint(Camera camera, Hand hand, HandPoint point, out Vector3 position)
         {
@@ -432,24 +387,6 @@ namespace EngineeringDemo
             return true;
         }
 
-        public bool RaycastFinger(Camera camera, HandFinger finger, out RaycastHit hit,
-            float maxDistance = 10f, int layerMask = Physics.DefaultRaycastLayers,
-            QueryTriggerInteraction triggers = QueryTriggerInteraction.Ignore, Hand hand = null)
-        {
-            hit = default;
-            return TryGetFingerRay(camera, finger, out var ray, hand) &&
-                Physics.Raycast(ray, out hit, maxDistance, layerMask, triggers);
-        }
-
-        public bool SphereCastFinger(Camera camera, HandFinger finger, float radius, out RaycastHit hit,
-            float maxDistance = 10f, int layerMask = Physics.DefaultRaycastLayers,
-            QueryTriggerInteraction triggers = QueryTriggerInteraction.Ignore, Hand hand = null)
-        {
-            hit = default;
-            return radius > 0f && TryGetFingerRay(camera, finger, out var ray, hand) &&
-                Physics.SphereCast(ray, radius, out hit, maxDistance, layerMask, triggers);
-        }
-
         public bool TryGetHand(HandSide side, out Hand hand)
         {
             for (int i = 0; i < _hands.Count; i++)
@@ -475,16 +412,16 @@ namespace EngineeringDemo
                 return;
 
             var elapsed = timestampSeconds - _lastFrameTime;
-            if (elapsed < 0 || elapsed > _trackingTimeoutSeconds)
+            if (elapsed < 0 || elapsed > _settings.TrackingTimeoutSeconds)
                 ClearHands();
 
             _lastFrameTime = timestampSeconds;
             _lastArrivalTime = Time.realtimeSinceStartupAsDouble;
             heightOverWidth = Mathf.Max(0.01f, heightOverWidth);
 
-            float blend = _smoothingSeconds <= 0f
+            float blend = _settings.SmoothingSeconds <= 0f
                 ? 1f
-                : 1f - Mathf.Exp(-(float)elapsed / _smoothingSeconds);
+                : 1f - Mathf.Exp(-(float)elapsed / _settings.SmoothingSeconds);
 
             _previousHands.AddRange(_hands);
             _hands.Clear();
@@ -504,9 +441,9 @@ namespace EngineeringDemo
                 var worldLandmarks = result.handWorldLandmarks;
                 var worldPoints = worldLandmarks != null && i < worldLandmarks.Count
                     ? worldLandmarks[i].landmarks : null;
-                hand.Apply(points, worldPoints, side, blend, _jitterDeadZone, heightOverWidth,
-                    _pinchClose, Mathf.Max(_pinchClose, _pinchRelease), _pistolMiddleExtensionLimit,
-                    timestampSeconds, _gestureChangeSeconds, CameraRotationAngle);
+                hand.Apply(points, worldPoints, side, blend, _settings.JitterDeadZone, heightOverWidth,
+                    _settings.PinchClose, Mathf.Max(_settings.PinchClose, _settings.PinchRelease), _settings.PistolMiddleExtensionLimit,
+                    timestampSeconds, _settings.GestureChangeSeconds, CameraRotationAngle);
                 _hands.Add(hand);
             }
 
@@ -525,8 +462,8 @@ namespace EngineeringDemo
 
         public void ClearHands()
         {
-            foreach (var hand in _hands)
-                hand.Clear();
+            for (int i = 0; i < _hands.Count; i++)
+                _hands[i].Clear();
             _hands.Clear();
             PrimaryHand = null;
         }
@@ -534,7 +471,7 @@ namespace EngineeringDemo
         private void Update()
         {
             if (_webcam != null && _webcam.width > 16 && _webcam.didUpdateThisFrame)
-                SubmitFrame(_webcam, _mirrorWebcam, _webcam.videoVerticallyMirrored, CameraRotationAngle);
+                SubmitFrame(_webcam, _settings.MirrorWebcam, _webcam.videoVerticallyMirrored, CameraRotationAngle);
 
             long timestamp = -1;
             lock (_resultLock)
@@ -551,7 +488,7 @@ namespace EngineeringDemo
                 UpdateHands(_currentResult, timestamp / 1000d, _heightOverWidth);
                 Status = _arDepth?.IsReady == true ? "Tracking hands (AR camera)" : "Tracking hands";
             }
-            if (_hands.Count > 0 && Time.realtimeSinceStartupAsDouble - _lastArrivalTime > _trackingTimeoutSeconds)
+            if (_hands.Count > 0 && Time.realtimeSinceStartupAsDouble - _lastArrivalTime > _settings.TrackingTimeoutSeconds)
             {
                 ClearHands();
             }
@@ -569,9 +506,10 @@ namespace EngineeringDemo
         private Hand FindPreviousHand(HandSide side, Vector2 wrist, float heightOverWidth)
         {
             var bestDistance = 0.25f * 0.25f;
-            Hand closest = null;
-            foreach (var candidate in _previousHands)
+            int closestIndex = -1;
+            for (int i = 0; i < _previousHands.Count; i++)
             {
+                var candidate = _previousHands[i];
                 if (side != HandSide.Unknown && candidate.Side != HandSide.Unknown && candidate.Side != side)
                     continue;
 
@@ -580,12 +518,15 @@ namespace EngineeringDemo
                 if (delta.sqrMagnitude < bestDistance)
                 {
                     bestDistance = delta.sqrMagnitude;
-                    closest = candidate;
+                    closestIndex = i;
                 }
             }
 
-            if (closest != null)
-                _previousHands.Remove(closest);
+            if (closestIndex < 0)
+                return null;
+
+            var closest = _previousHands[closestIndex];
+            _previousHands.RemoveAt(closestIndex);
             return closest;
         }
 

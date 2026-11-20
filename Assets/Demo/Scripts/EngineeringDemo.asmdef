@@ -1,0 +1,13 @@
+{
+    "name": "EngineeringDemo",
+    "rootNamespace": "EngineeringDemo",
+    "references": [
+        "Mediapipe.Runtime",
+        "Unity.InputSystem",
+        "Unity.XR.ARFoundation",
+        "Unity.XR.ARSubsystems",
+        "Unity.XR.CoreUtils",
+        "Unity.XR.Management",
+        "UnityEngine.UI"
+    ]
+}

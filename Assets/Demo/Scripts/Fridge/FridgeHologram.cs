@@ -72,8 +72,9 @@ namespace EngineeringDemo
                 return default;
 
             // The nearest wall blocks selection of a door or cover behind it.
-            foreach (var section in _sections)
+            for (int i = 0; i < _sections.Length; i++)
             {
+                var section = _sections[i];
                 var selector = section.FindSelector(surface);
                 if (selector != null)
                     return new SectionHit(section, selector, ray.GetPoint(nearest));
@@ -89,8 +90,9 @@ namespace EngineeringDemo
         {
             Renderer closest = null;
             nearest = float.PositiveInfinity;
-            foreach (var renderer in _modelRenderers)
+            for (int i = 0; i < _modelRenderers.Length; i++)
             {
+                var renderer = _modelRenderers[i];
                 float distance = FridgeSection.HitDistance(renderer, ray);
                 if (distance >= nearest)
                     continue;
@@ -137,8 +139,8 @@ namespace EngineeringDemo
             _assembledRotation = InspectionRotation;
             ResetRotation();
             _spreadTime = 0f;
-            foreach (var section in _sections)
-                section.Show(section == _openSection, false);
+            for (int i = 0; i < _sections.Length; i++)
+                _sections[i].Show(_sections[i] == _openSection, false);
 
             Debug.Log($"[FridgeDemo] {hit.Section.name} opened by {source}.", this);
             return true;
@@ -152,8 +154,8 @@ namespace EngineeringDemo
             SetSectionHover(default);
             _openSection = null;
             InspectionRotation = _assembledRotation;
-            foreach (var section in _sections)
-                section.Show(false, true);
+            for (int i = 0; i < _sections.Length; i++)
+                _sections[i].Show(false, true);
             return true;
         }
 
@@ -209,8 +211,8 @@ namespace EngineeringDemo
                 _model = Instantiate(_modelPrefab, transform).transform;
                 _sections = _model.GetComponentsInChildren<FridgeSection>(true);
                 _modelRenderers = _model.GetComponentsInChildren<Renderer>(true);
-                foreach (var section in _sections)
-                    section.Initialize();
+                for (int i = 0; i < _sections.Length; i++)
+                    _sections[i].Initialize();
                 InspectionRotation = Quaternion.Euler(0f, _inspectionYaw, 0f);
                 _selected = false;
             }

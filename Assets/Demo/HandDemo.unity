@@ -956,22 +956,8 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7f9dd95d06eae0b44981602368f379e8, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::EngineeringDemo.HandManager
-  _model: {fileID: 4900000, guid: b467f87f6b5d4d200974b3ca14f53987, type: 3}
-  _useWebcam: 1
-  _webcamName: 
-  _mirrorWebcam: 1
-  _cameraWidth: 640
-  _cameraHeight: 480
-  _cameraFrameRate: 30
-  _maximumHands: 2
-  _minimumConfidence: 0.5
-  _smoothingSeconds: 0.06
-  _jitterDeadZone: 0.0015
-  _trackingTimeoutSeconds: 0.35
-  _pinchClose: 0.25
-  _pinchRelease: 0.35
-  _wristDistanceFromCamera: 0.6
+  m_EditorClassIdentifier: EngineeringDemo::EngineeringDemo.HandManager
+  _settings: {fileID: 11400000, guid: eceed7ba3048442c8b4be25a17ab81a8, type: 2}
 --- !u!4 &2122589128
 Transform:
   m_ObjectHideFlags: 0
@@ -997,6 +983,8 @@ GameObject:
   m_Component:
   - component: {fileID: 2131436092}
   - component: {fileID: 2131436091}
+  - component: {fileID: 2131436094}
+  - component: {fileID: 2131436095}
   m_Layer: 0
   m_Name: Hand Demo View
   m_TagString: Untagged
@@ -1015,18 +1003,45 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 732ad7b4c46378e46865aa0e5f3860ad, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::EngineeringDemo.HandDemoView
+  m_EditorClassIdentifier: EngineeringDemo::EngineeringDemo.HandDemoView
   _handManager: {fileID: 2122589127}
   _camera: {fileID: 567289340}
   _preview: {fileID: 2094050928}
   _status: {fileID: 1195338479}
+  _visuals: {fileID: 2131436094}
+  _targetPractice: {fileID: 2131436095}
+--- !u!114 &2131436094
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2131436090}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3c2318d418c2417a8cb65b7f0102461c, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: EngineeringDemo::EngineeringDemo.HandDemoVisuals
   _lineMaterial: {fileID: 2100000, guid: 15fe31ee38fcb414a9fa273a8152cf68, type: 2}
+  _settings: {fileID: 11400000, guid: 9941853492054308a78acadb8a50ee83, type: 2}
+--- !u!114 &2131436095
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2131436090}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b4c2b494ec1474f82826f60af83ae9e, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: EngineeringDemo::EngineeringDemo.HandTargetPractice
   _targets:
   - {fileID: 408484464}
   - {fileID: 1723342981}
   - {fileID: 1517050174}
   _finger: 1
-  _sphereCast: 1
+  _startWithSphereCast: 1
   _sphereRadius: 0.025
   _castDistance: 3
 --- !u!4 &2131436092

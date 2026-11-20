@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e3d118fc55f14c028590d55dd74b9210, type: 3}
+  m_Name: FridgeDemoTracking
+  m_EditorClassIdentifier: EngineeringDemo::EngineeringDemo.HandTrackingSettings
+  _model: {fileID: 4900000, guid: b467f87f6b5d4d200974b3ca14f53987, type: 3}
+  _useWebcam: 1
+  _webcamName:
+  _mirrorWebcam: 0
+  _cameraWidth: 640
+  _cameraHeight: 480
+  _cameraFrameRate: 30
+  _maximumHands: 2
+  _minimumConfidence: 0.5
+  _smoothingSeconds: 0.06
+  _gestureChangeSeconds: 0
+  _jitterDeadZone: 0.0018
+  _trackingTimeoutSeconds: 0.35
+  _pinchClose: 0.25
+  _pinchRelease: 0.35
+  _pistolMiddleExtensionLimit: 1
+  _initialWristDistance: 0.6

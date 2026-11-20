@@ -126,8 +126,9 @@ namespace EngineeringDemo
             float nearest = float.PositiveInfinity;
             using (hits)
             {
-                foreach (var hit in hits)
+                for (int i = 0; i < hits.Length; i++)
                 {
+                    var hit = hits[i];
                     if (hit.distance > 0f)
                         nearest = Mathf.Min(nearest, hit.distance);
                 }
